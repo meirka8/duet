@@ -22,37 +22,109 @@ pub struct PanelTab {
 
 impl PanelTab {
     pub fn new(id: usize, path: VPath) -> Self {
-        let mut model = DirectoryModel::new();
-        // Load initial dummy / parent entry if applicable
-        let entries = vec![EntryInput {
-            id: EntryId(0),
-            name: "..".into(),
-            file_type: FileType::Directory,
-            size: 0,
-            mode: 0o755,
-            uid: 1000,
-            gid: 1000,
-            mtime: 0,
-            atime: 0,
-            ctime: 0,
-            dev: 1,
-            ino: 0,
-            nlink: 2,
-            flags: 0,
-        }];
-        model.set_entries(entries);
-
-        Self {
+        let mut tab = Self {
             id,
-            path,
-            model,
+            path: path.clone(),
+            model: DirectoryModel::new(),
             cursor: CursorState::default(),
             view_mode: ViewMode::Full,
             history_back: Vec::new(),
             history_forward: Vec::new(),
             is_locked: false,
             lock_dir_change: false,
+        };
+        tab.load_path(&path);
+        tab
+    }
+
+    pub fn load_path(&mut self, vpath: &VPath) {
+        let mut entries = Vec::new();
+
+        // Add parent entry if not root
+        let clean_path = vpath.path.trim_end_matches('/');
+        if !clean_path.is_empty() {
+            entries.push(EntryInput {
+                id: EntryId(0),
+                name: "..".into(),
+                file_type: FileType::Directory,
+                size: 0,
+                mode: 0o755,
+                uid: 1000,
+                gid: 1000,
+                mtime: 0,
+                atime: 0,
+                ctime: 0,
+                dev: 1,
+                ino: 0,
+                nlink: 2,
+                flags: 0,
+            });
         }
+
+        let dir_to_read = if vpath.path.is_empty() { "/" } else { &vpath.path };
+
+        if let Ok(dir_entries) = std::fs::read_dir(dir_to_read) {
+            for (idx, entry) in dir_entries.flatten().enumerate() {
+                let next_id = (idx + 1) as u64;
+                let name = entry.file_name().to_string_lossy().to_string();
+                let metadata = entry.metadata().ok();
+
+                let file_type = if let Some(ref meta) = metadata {
+                    if meta.is_dir() {
+                        FileType::Directory
+                    } else if meta.is_symlink() {
+                        FileType::Symlink
+                    } else {
+                        FileType::File
+                    }
+                } else {
+                    FileType::Unknown
+                };
+
+                let size = metadata.as_ref().map(|m| m.len()).unwrap_or(0);
+                let mode = metadata
+                    .as_ref()
+                    .map(|m| {
+                        #[cfg(unix)]
+                        {
+                            use std::os::unix::fs::PermissionsExt;
+                            m.permissions().mode()
+                        }
+                        #[cfg(not(unix))]
+                        {
+                            0o644
+                        }
+                    })
+                    .unwrap_or(0o644);
+
+                let mtime = metadata
+                    .as_ref()
+                    .and_then(|m| m.modified().ok())
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map(|d| d.as_secs() as i64)
+                    .unwrap_or(0);
+
+                entries.push(EntryInput {
+                    id: EntryId(next_id),
+                    name,
+                    file_type,
+                    size,
+                    mode,
+                    uid: 1000,
+                    gid: 1000,
+                    mtime,
+                    atime: mtime,
+                    ctime: mtime,
+                    dev: 1,
+                    ino: next_id,
+                    nlink: 1,
+                    flags: 0,
+                });
+            }
+        }
+
+        self.path = vpath.clone();
+        self.model.set_entries(entries);
     }
 
     pub fn title(&self) -> String {
@@ -77,7 +149,11 @@ pub struct DirectoryPanelState {
 
 impl Default for DirectoryPanelState {
     fn default() -> Self {
-        let root_tab = PanelTab::new(1, VPath::parse("/").unwrap_or_default());
+        let cwd = std::env::current_dir()
+            .ok()
+            .and_then(|p| p.to_str().map(String::from))
+            .unwrap_or_else(|| "/".to_string());
+        let root_tab = PanelTab::new(1, VPath::new_local(cwd));
         Self {
             tabs: vec![root_tab],
             active_tab_idx: 0,
@@ -157,7 +233,7 @@ impl DirectoryPanelState {
         let old_path = tab.path.clone();
         tab.history_back.push(old_path);
         tab.history_forward.clear();
-        tab.path = new_path;
+        tab.load_path(&new_path);
         tab.cursor.move_home();
     }
 
@@ -189,7 +265,7 @@ impl DirectoryPanelState {
         if let Some(prev) = tab.history_back.pop() {
             let curr = tab.path.clone();
             tab.history_forward.push(curr);
-            tab.path = prev;
+            tab.load_path(&prev);
             tab.cursor.move_home();
         }
     }
@@ -199,7 +275,7 @@ impl DirectoryPanelState {
         if let Some(next) = tab.history_forward.pop() {
             let curr = tab.path.clone();
             tab.history_back.push(curr);
-            tab.path = next;
+            tab.load_path(&next);
             tab.cursor.move_home();
         }
     }

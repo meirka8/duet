@@ -4,6 +4,10 @@ use crate::workspace::WorkspaceView;
 use gpui::*;
 
 pub fn run_app() {
+    run_app_with_paths(None, None);
+}
+
+pub fn run_app_with_paths(left_path: Option<String>, right_path: Option<String>) {
     // Assert UI thread blocking guard (ADR-0002 / T-3.1.6)
     duet_platform::set_ui_thread(true);
 
@@ -25,8 +29,11 @@ pub fn run_app() {
             ..Default::default()
         };
 
-        cx.open_window(options, |_window, cx| {
-            cx.new(|cx| WorkspaceView::new(cx))
+        let lp = left_path.clone();
+        let rp = right_path.clone();
+
+        cx.open_window(options, move |_window, cx| {
+            cx.new(|cx| WorkspaceView::with_paths(cx, lp, rp))
         })
         .expect("Failed to open Duet workspace window");
     });

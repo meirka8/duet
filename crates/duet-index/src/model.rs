@@ -482,7 +482,7 @@ impl DirectoryModel {
     fn matches_filter(&self, index: usize) -> bool {
         let name = self.store.get_name(index);
 
-        if !self.filter_spec.show_hidden && name.starts_with('.') {
+        if !self.filter_spec.show_hidden && name.starts_with('.') && name != ".." {
             return false;
         }
 
