@@ -36,6 +36,7 @@ mod tests {
         let dst_dir = temp.path().join("dest_dir");
 
         std::fs::create_dir_all(&src_dir).unwrap();
+        std::fs::create_dir_all(&dst_dir).unwrap();
         std::fs::write(src_dir.join("file1.txt"), "hello file 1").unwrap();
         std::fs::write(src_dir.join("file2.txt"), "hello file 2 data").unwrap();
         std::fs::write(src_dir.join("file3.txt"), "hello file 3 extra data").unwrap();

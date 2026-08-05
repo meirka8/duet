@@ -149,7 +149,7 @@ impl Executor {
                     );
                 }
                 Err(err) => {
-                    if matches!(err, VfsError::OutOfSpace) {
+                    if is_enospc(&err) {
                         // ENOSPC: pause queue
                         pause_signal.store(true, Ordering::SeqCst);
                         job.pause();
@@ -267,34 +267,28 @@ impl Executor {
                         }
                     }
 
-                    // If local file scheme, use copy strategy ladder!
-                    if src.scheme == "file" && dst.scheme == "file" {
-                        let (_strategy, bytes) = execute_copy_strategy_ladder(src, dst, *size)?;
-                        Ok(bytes)
-                    } else {
-                        // VFS fallback server side copy
-                        let outcome = fs.server_side_copy(src, dst).await?;
-                        if outcome == duet_vfs::CopyOutcome::Success {
-                            Ok(*size)
-                        } else {
-                            // Fallback manual read/write
-                            let mut reader = fs.open_read(src).await?;
-                            let mut writer = fs
-                                .open_write(
-                                    dst,
-                                    duet_vfs::WriteOpts {
-                                        overwrite: true,
-                                        create_parents: true,
-                                        ..Default::default()
-                                    },
-                                )
-                                .await?;
-
-                            tokio::io::copy(&mut reader, &mut writer).await?;
-                            writer.commit().await?;
-                            Ok(*size)
-                        }
+                    // Try server-side accelerated copy on fs first
+                    let outcome = fs.server_side_copy(src, dst).await?;
+                    if outcome == duet_vfs::CopyOutcome::Success {
+                        return Ok(*size);
                     }
+
+                    // Standard VFS copy using staging open_write + commit
+                    let mut reader = fs.open_read(src).await?;
+                    let mut writer = fs
+                        .open_write(
+                            dst,
+                            duet_vfs::WriteOpts {
+                                overwrite: true,
+                                create_parents: true,
+                                ..Default::default()
+                            },
+                        )
+                        .await?;
+
+                    let copied = tokio::io::copy(&mut reader, &mut writer).await?;
+                    writer.commit().await?;
+                    Ok(copied)
                 }
 
                 Step::Reflink { src, dst } => {
@@ -312,6 +306,18 @@ impl Executor {
                     let src_meta = fs.stat(src, false).await?;
                     let dst_meta = fs.stat(dst, false).await.ok();
 
+                    let is_same_dev = if let Some(ref dmeta) = dst_meta {
+                        src_meta.dev == dmeta.dev && src_meta.dev != 0
+                    } else if let Some(parent) = dst.parent() {
+                        if let Ok(pmeta) = fs.stat(&parent, false).await {
+                            src_meta.dev == pmeta.dev && src_meta.dev != 0
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    };
+
                     if let Some(ref dmeta) = dst_meta {
                         let decision = resolve_conflict(
                             conflict_policy,
@@ -324,25 +330,37 @@ impl Executor {
                             crate::conflict::ConflictDecision::Skip => return Ok(0),
                             crate::conflict::ConflictDecision::Cancel => return Err(VfsError::Cancelled),
                             crate::conflict::ConflictDecision::AutoRename(new_dst) => {
-                                return self
-                                    .execute_single_step(
-                                        &Step::MoveFile {
-                                            src: src.clone(),
-                                            dst: new_dst,
-                                        },
-                                        fs,
-                                        conflict_policy,
-                                        _event_sender,
-                                        _job_id,
-                                    )
-                                    .await;
+                                return Box::pin(self.execute_single_step(
+                                    &Step::MoveFile {
+                                        src: src.clone(),
+                                        dst: new_dst,
+                                    },
+                                    fs,
+                                    conflict_policy,
+                                    _event_sender,
+                                    _job_id,
+                                ))
+                                .await;
                             }
                             crate::conflict::ConflictDecision::Overwrite => {}
                         }
                     }
 
-                    // Try same-device renameat2
-                    if src.scheme == dst.scheme && src_meta.dev != 0 {
+                    // Compute whether src and dst are on the same filesystem device
+                    let is_same_dev = if let Some(ref dmeta) = dst_meta {
+                        src_meta.dev == dmeta.dev && src_meta.dev != 0
+                    } else if let Some(parent) = dst.parent() {
+                        if let Ok(pmeta) = fs.stat(&parent, false).await {
+                            src_meta.dev == pmeta.dev && src_meta.dev != 0
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    };
+
+                    // Try same-device rename ONLY if on the same device
+                    if src.scheme == dst.scheme && is_same_dev {
                         if let Ok(()) = fs
                             .rename(
                                 src,
@@ -358,7 +376,7 @@ impl Executor {
                     }
 
                     // Cross-device: copy -> verify -> fsync -> unlink
-                    self.execute_single_step(
+                    Box::pin(self.execute_single_step(
                         &Step::CopyFile {
                             src: src.clone(),
                             dst: dst.clone(),
@@ -368,7 +386,7 @@ impl Executor {
                         conflict_policy,
                         _event_sender,
                         _job_id,
-                    )
+                    ))
                     .await?;
 
                     // fsync dst
@@ -378,7 +396,7 @@ impl Executor {
                         }
                     }
 
-                    // Unlink source
+                    // Unlink source ONLY after copy and fsync succeed
                     fs.remove(src, RemoveKind::File).await?;
                     Ok(src_meta.size)
                 }
@@ -520,6 +538,14 @@ pub async fn compute_blake3_checksum(vpath: &VPath, _fs: &dyn FileSystem) -> Vfs
         Ok(hasher.finalize().to_hex().to_string())
     } else {
         Ok("unsupported_vfs_checksum".to_string())
+    }
+}
+
+fn is_enospc(err: &VfsError) -> bool {
+    match err {
+        VfsError::OutOfSpace => true,
+        VfsError::Io(io_err) => io_err.raw_os_error() == Some(28),
+        _ => false,
     }
 }
 

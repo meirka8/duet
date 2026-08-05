@@ -35,11 +35,6 @@ impl Planner {
         let mut total_files = 0u64;
         let mut total_bytes = 0u64;
 
-        steps.push(Step::CreateDir {
-            path: destination_dir.clone(),
-            mode: Some(0o755),
-        });
-
         for src in sources {
             if is_cancelled(cancel_signal) {
                 return Err(VfsError::Cancelled);
@@ -90,7 +85,7 @@ impl Planner {
             if is_cancelled(cancel_signal) {
                 return Err(VfsError::Cancelled);
             }
-            let delete_plan = self.build_delete_plan(&[src.clone()], fs, cancel_signal).await?;
+            let delete_plan = self.build_delete_plan(std::slice::from_ref(src), fs, cancel_signal).await?;
             steps.extend(delete_plan.steps);
         }
 
@@ -146,7 +141,7 @@ impl Planner {
         cancel_signal: Option<&Arc<AtomicBool>>,
     ) -> VfsResult<SyncPlan> {
         let copy_plan = self
-            .build_copy_plan(&[source_dir.clone()], target_dir, fs, cancel_signal)
+            .build_copy_plan(std::slice::from_ref(source_dir), target_dir, fs, cancel_signal)
             .await?;
 
         Ok(SyncPlan {
@@ -286,6 +281,7 @@ impl Planner {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn plan_delete_recursive(
         &self,
         src: &VPath,

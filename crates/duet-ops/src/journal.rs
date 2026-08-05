@@ -149,7 +149,7 @@ impl Journal {
         for entry in std::fs::read_dir(path)? {
             let entry = entry?;
             let p = entry.path();
-            if p.extension().map_or(false, |ext| ext == "journal") {
+            if p.extension().is_some_and(|ext| ext == "journal") {
                 if let Ok(Some((job_id, plan, step_idx))) = Self::recover(&p) {
                     if step_idx < plan.steps().len() {
                         results.push((p, job_id, plan, step_idx));
