@@ -180,6 +180,10 @@ impl EntryStore {
         self.mtimes[index]
     }
 
+    pub fn mode(&self, index: usize) -> u32 {
+        self.modes[index]
+    }
+
     pub fn update_entry(
         &mut self,
         index: usize,

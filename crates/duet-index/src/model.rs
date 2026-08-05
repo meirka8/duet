@@ -186,7 +186,7 @@ pub fn glob_match(pattern: &str, text: &str) -> bool {
 }
 
 /// Directory panel view model managing entry layout, sorting, filtering, selection, and debounced file watching notifications.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DirectoryModel {
     store: EntryStore,
     view_indices: Vec<usize>,
