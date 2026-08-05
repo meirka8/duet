@@ -288,5 +288,11 @@ mod tests {
             ws.active_modal,
             ActiveModal::ConnectionManager(_)
         ));
+
+        ws.trigger_plugin_manager();
+        assert!(matches!(
+            ws.active_modal,
+            ActiveModal::PluginManager(_)
+        ));
     }
 }

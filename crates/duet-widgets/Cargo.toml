@@ -12,4 +12,5 @@ gpui-component = { workspace = true }
 duet-types = { path = "../duet-types" }
 duet-vfs = { path = "../duet-vfs" }
 duet-ops = { path = "../duet-ops" }
+duet-plugin = { path = "../duet-plugin" }
 
