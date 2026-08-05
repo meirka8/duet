@@ -5,16 +5,17 @@ use crate::theme::ThemeTokens;
 use duet_index::EntryInput;
 use duet_types::{EntryId, FileType, VPath};
 use duet_widgets::{
-    ConflictDialogState, ConflictResolutionDialog, CopyMoveDialog, CopyMoveDialogState,
-    CreateDirDialog, CreateDirDialogState, CreateLinkDialog, CreateLinkDialogState,
-    DeleteConfirmationDialog, DeleteDialogState, DriveBar, DriveBarData, ErrorLogEntry,
-    ErrorReportDialog, ErrorReportState, FileMetaSide, FunctionBar, InputState, InputWidget,
-    InternalViewerWidget, JobItemDisplay, JobManagerModalState, JournalRecoveryEntry, LinkKind,
-    OperationManagerModal, PackDialog, PackDialogState, PermissionsDialog, PermissionsDialogState,
-    QuickViewWidget, RenameDialog, RenameDialogState, ResizableSplitter, SearchDialogState,
-    SearchResultEntry, SearchViewWidget, SplitDirection, SplitterState, StatusBar, StatusBarData,
-    StatusProgressTray, StatusProgressTrayData, StartupRecoveryOverlay, StartupRecoveryState,
-    UnpackDialog, UnpackDialogState, ViewerState,
+    ConflictDialogState, ConflictResolutionDialog, ConnectionManagerDialog,
+    ConnectionManagerDialogState, CopyMoveDialog, CopyMoveDialogState, CreateDirDialog,
+    CreateDirDialogState, CreateLinkDialog, CreateLinkDialogState, DeleteConfirmationDialog,
+    DeleteDialogState, DriveBar, DriveBarData, ErrorLogEntry, ErrorReportDialog, ErrorReportState,
+    FileMetaSide, FunctionBar, InputState, InputWidget, InternalViewerWidget, JobItemDisplay,
+    JobManagerModalState, JournalRecoveryEntry, LinkKind, OperationManagerModal, PackDialog,
+    PackDialogState, PermissionsDialog, PermissionsDialogState, QuickViewWidget, RenameDialog,
+    RenameDialogState, ResizableSplitter, SearchDialogState, SearchResultEntry, SearchViewWidget,
+    SplitDirection, SplitterState, StatusBar, StatusBarData, StatusProgressTray,
+    StatusProgressTrayData, StartupRecoveryOverlay, StartupRecoveryState, UnpackDialog,
+    UnpackDialogState, ViewerState,
 };
 use gpui::*;
 
@@ -42,6 +43,7 @@ pub enum ActiveModal {
     SearchView(SearchDialogState),
     Pack(PackDialogState),
     Unpack(UnpackDialogState),
+    ConnectionManager(Box<ConnectionManagerDialogState>),
 }
 
 pub struct WorkspaceView {
@@ -417,6 +419,12 @@ impl WorkspaceView {
         active_tab.model.set_entries(entries);
     }
 
+    // --- Task 7.1.8: Connection Manager UI ---
+    pub fn trigger_connection_manager(&mut self) {
+        let state = ConnectionManagerDialogState::default();
+        self.active_modal = ActiveModal::ConnectionManager(Box::new(state));
+    }
+
     fn update_quick_view_preview(&mut self) {
         if self.is_quick_view {
             let path = self.get_active_cursor_item_path().unwrap_or_default();
@@ -702,6 +710,13 @@ impl Render for WorkspaceView {
                 theme.active_border,
             ),
             ActiveModal::Unpack(state) => UnpackDialog::render(
+                state,
+                theme.panel_bg,
+                theme.fg,
+                theme.inactive_border,
+                theme.active_border,
+            ),
+            ActiveModal::ConnectionManager(state) => ConnectionManagerDialog::render(
                 state,
                 theme.panel_bg,
                 theme.fg,

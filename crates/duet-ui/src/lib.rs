@@ -282,5 +282,11 @@ mod tests {
             ws.active_panel_state().active_tab().path.to_string(),
             "branch://flat_tree/"
         );
+
+        ws.trigger_connection_manager();
+        assert!(matches!(
+            ws.active_modal,
+            ActiveModal::ConnectionManager(_)
+        ));
     }
 }

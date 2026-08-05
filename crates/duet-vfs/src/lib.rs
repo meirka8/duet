@@ -11,11 +11,16 @@ pub mod local;
 pub mod null;
 pub mod mount;
 pub mod archive;
+pub mod remote;
 
 pub use local::LocalFs;
 pub use null::NullFs;
 pub use mount::{MountRecord, MountTable};
 pub use archive::{ContainerFs, ContainerKind, RarFs, SevenZipFs, TarCompression, TarFs, ZipFs};
+pub use remote::{
+    ConnectionProfile, CredentialStore, FtpFs, FtpMode, S3Fs, SecretString, SftpFs, SmbFs,
+    WebDavFs,
+};
 
 /// Listing options to restrict requested metadata fields for efficient listing.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]

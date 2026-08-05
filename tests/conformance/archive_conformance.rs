@@ -1,7 +1,7 @@
 //! Archive Security & Conformance Test Suite (Tasks T-6.1.7, T-6.1.12).
 //! Tests Zip, Tar/Gz/Bz2/Xz/Zstd, 7z, RAR, ISO/DEB/RPM, Zip-Slip rejection, ratio bomb checks, and capability honesty.
 
-use duet_types::{MountId, VPath, VfsError};
+use duet_types::{MountId, VPath};
 use duet_vfs::archive::{
     ArchiveSecurity, ContainerFs, ContainerKind, RarFs, SevenZipFs, TarCompression, TarFs, ZipFs,
 };
