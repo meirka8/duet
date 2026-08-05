@@ -1,0 +1,67 @@
+.TH DUET 1 "August 2026" "Duet 0.1.0" "User Commands"
+.SH NAME
+duet \- GPU-accelerated keyboard-first orthodox file manager for Linux
+.SH SYNOPSIS
+.B duet
+[\fIOPTIONS\fR] [\fIPATH\fR]
+.SH DESCRIPTION
+Duet is an orthodox dual-panel file manager written in Rust and rendered via GPUI.
+It features virtualized table rendering at 120 Hz, zero UI-thread blocking syscalls,
+append-only journal data safety, WASM plugin extensibility, and 100% muscle-memory fidelity with Total Commander 11.
+.SH OPTIONS
+.TP
+.B \-\-left \fIPATH\fR
+Open starting directory in the left panel.
+.TP
+.B \-\-right \fIPATH\fR
+Open starting directory in the right panel.
+.TP
+.B \-\-new\-tab \fIPATH\fR
+Open specified path in a new tab.
+.TP
+.B \-\-goto \fIPATH\fR
+Navigate active panel to specified path.
+.TP
+.B \-v, \-\-version
+Print version information and exit.
+.TP
+.B \-h, \-\-help
+Print usage help and exit.
+.SH KEYBINDINGS
+.TP
+.B F3
+View file under cursor (Internal Viewer / Hex / Text / Image)
+.TP
+.B F4
+Edit file under cursor
+.TP
+.B F5
+Copy selected items to opposite panel
+.TP
+.B F6
+Move selected items to opposite panel
+.TP
+.B F7
+Create directory
+.TP
+.B F8 / Delete
+Delete selected items (Trash or Permanent)
+.TP
+.B Alt+F5
+Pack files into archive (Zip, Tar, 7z, RAR)
+.TP
+.B Alt+F9
+Unpack archive contents
+.TP
+.B Ctrl+B
+Branch view (flat tree view)
+.TP
+.B Ctrl+Q
+Quick view panel preview
+.SH FILES
+.I ~/.config/duet/settings.toml
+User settings configuration.
+.I ~/.config/duet/keymap.toml
+Custom keybinding overrides.
+.SH AUTHOR
+Built with passion by the Duet Team.

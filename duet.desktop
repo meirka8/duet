@@ -1,0 +1,17 @@
+[Desktop Entry]
+Name=Duet
+GenericName=File Manager
+Comment=GPU-accelerated keyboard-first orthodox file manager
+Exec=duet %U
+Icon=duet
+Terminal=false
+Type=Application
+Categories=System;FileTools;FileManager;Utility;
+MimeType=inode/directory;
+Keywords=file;manager;explorer;orthodox;dual-panel;total-commander;
+StartupWMClass=duet
+Actions=NewWindow;
+
+[Desktop Action NewWindow]
+Name=Open New Window
+Exec=duet --new-instance
