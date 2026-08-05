@@ -85,6 +85,39 @@ impl VPath {
     pub fn is_nested(&self) -> bool {
         self.nested.is_some()
     }
+
+    /// Extract the final file name or directory name component of the path.
+    pub fn file_name(&self) -> Option<&str> {
+        let p = self.path.trim_end_matches('/');
+        if p.is_empty() {
+            Some("/")
+        } else {
+            p.rsplit('/').next()
+        }
+    }
+
+    /// Return the parent directory VPath, or None if already at root.
+    pub fn parent(&self) -> Option<VPath> {
+        let p = self.path.trim_end_matches('/');
+        if p.is_empty() || p == "/" {
+            return None;
+        }
+
+        if let Some(idx) = p.rfind('/') {
+            let parent_path = if idx == 0 { "/" } else { &p[..idx] };
+            let mut parent_vpath = self.clone();
+            parent_vpath.path = parent_path.to_string();
+            Some(parent_vpath)
+        } else {
+            None
+        }
+    }
+}
+
+impl Default for VPath {
+    fn default() -> Self {
+        Self::new_local("/")
+    }
 }
 
 impl fmt::Display for VPath {

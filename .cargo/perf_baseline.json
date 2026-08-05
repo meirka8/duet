@@ -1,0 +1,17 @@
+{
+  "DirectoryModel quick-filtering/quick_filter/10": 2614.983901940239,
+  "DirectoryModel quick-filtering/quick_filter/100000": 535051436.05,
+  "DirectoryModel quick-filtering/quick_filter/1000": 1076212.7610000002,
+  "VFS read_dir/read_dir/10": 29592.125783961234,
+  "VFS read_dir/read_dir/10000": 53934.044976758276,
+  "VFS read_dir/read_dir/1000": 43183.365408096506,
+  "EntryStore sorting/sort_name/10": 4394.895001242771,
+  "EntryStore sorting/sort_name/100000": 1619822196.64,
+  "EntryStore sorting/sort_name/1000": 1731801.8644444442,
+  "EntryStore sorting/sort_size/10": 1612.811380694141,
+  "EntryStore sorting/sort_size/100000": 1377145789.77,
+  "EntryStore sorting/sort_size/1000": 253557.255,
+  "VFS statx batching/statx_batch/10": 41077.662417708794,
+  "VFS statx batching/statx_batch/10000": 173662.56689076056,
+  "VFS statx batching/statx_batch/1000": 117793.82287798988
+}
