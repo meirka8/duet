@@ -7,13 +7,14 @@ use duet_types::{EntryId, FileType, VPath};
 use duet_widgets::{
     ConflictDialogState, ConflictResolutionDialog, CopyMoveDialog, CopyMoveDialogState,
     CreateDirDialog, CreateDirDialogState, CreateLinkDialog, CreateLinkDialogState,
-    DeleteConfirmationDialog, DeleteDialogState, ErrorLogEntry, ErrorReportDialog,
-    ErrorReportState, FileMetaSide, FunctionBar, InputState, InputWidget, InternalViewerWidget,
-    JobItemDisplay, JobManagerModalState, JournalRecoveryEntry, LinkKind, OperationManagerModal,
-    PermissionsDialog, PermissionsDialogState, QuickViewWidget, RenameDialog, RenameDialogState,
-    ResizableSplitter, SearchDialogState, SearchResultEntry, SearchViewWidget, SplitDirection,
-    SplitterState, StatusBar, StatusBarData, StatusProgressTray, StatusProgressTrayData,
-    StartupRecoveryOverlay, StartupRecoveryState, ViewerState,
+    DeleteConfirmationDialog, DeleteDialogState, DriveBar, DriveBarData, ErrorLogEntry,
+    ErrorReportDialog, ErrorReportState, FileMetaSide, FunctionBar, InputState, InputWidget,
+    InternalViewerWidget, JobItemDisplay, JobManagerModalState, JournalRecoveryEntry, LinkKind,
+    OperationManagerModal, PackDialog, PackDialogState, PermissionsDialog, PermissionsDialogState,
+    QuickViewWidget, RenameDialog, RenameDialogState, ResizableSplitter, SearchDialogState,
+    SearchResultEntry, SearchViewWidget, SplitDirection, SplitterState, StatusBar, StatusBarData,
+    StatusProgressTray, StatusProgressTrayData, StartupRecoveryOverlay, StartupRecoveryState,
+    UnpackDialog, UnpackDialogState, ViewerState,
 };
 use gpui::*;
 
@@ -39,6 +40,8 @@ pub enum ActiveModal {
     Permissions(PermissionsDialogState),
     InternalViewer(ViewerState),
     SearchView(SearchDialogState),
+    Pack(PackDialogState),
+    Unpack(UnpackDialogState),
 }
 
 pub struct WorkspaceView {
@@ -49,6 +52,7 @@ pub struct WorkspaceView {
     pub cmdline_state: InputState,
     pub active_modal: ActiveModal,
     pub progress_tray: StatusProgressTrayData,
+    pub drive_bar: DriveBarData,
     pub is_quick_view: bool,
     pub quick_view_state: Option<ViewerState>,
     pub theme: ThemeTokens,
@@ -70,6 +74,7 @@ impl Default for WorkspaceView {
             cmdline_state,
             active_modal: ActiveModal::None,
             progress_tray: StatusProgressTrayData::default(),
+            drive_bar: DriveBarData::default(),
             is_quick_view: false,
             quick_view_state: None,
             theme: ThemeTokens::dark(),
@@ -340,6 +345,76 @@ impl WorkspaceView {
     pub fn trigger_quick_view(&mut self) {
         self.is_quick_view = !self.is_quick_view;
         self.update_quick_view_preview();
+    }
+
+    // --- Task 6.1.8: Pack Dialog (Alt+F5) ---
+    pub fn trigger_pack(&mut self) {
+        let source_files = self.get_active_selected_files();
+        let state = PackDialogState {
+            source_files,
+            ..Default::default()
+        };
+        self.active_modal = ActiveModal::Pack(state);
+    }
+
+    // --- Task 6.1.9: Unpack Dialog (Alt+F9) ---
+    pub fn trigger_unpack(&mut self) {
+        let source_archives = self.get_active_selected_files();
+        let target_dir = self.target_panel_state().active_tab().path.to_string();
+        let state = UnpackDialogState {
+            source_archives,
+            dest_input: InputState {
+                value: target_dir,
+                placeholder: "Unpack destination directory path".to_string(),
+                is_focused: true,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        self.active_modal = ActiveModal::Unpack(state);
+    }
+
+    // --- Task 6.1.13: Branch View (Ctrl+B) ---
+    pub fn trigger_branch_view(&mut self) {
+        let active_tab = self.active_panel_state_mut().active_tab_mut();
+        active_tab.path = VPath::parse("branch://flat_tree").unwrap_or_default();
+
+        let entries = vec![
+            EntryInput {
+                id: EntryId(1001),
+                name: "src/main.rs".into(),
+                file_type: FileType::File,
+                size: 1024,
+                mode: 0o644,
+                uid: 1000,
+                gid: 1000,
+                mtime: 1,
+                atime: 1,
+                ctime: 1,
+                dev: 1,
+                ino: 1001,
+                nlink: 1,
+                flags: 0,
+            },
+            EntryInput {
+                id: EntryId(1002),
+                name: "src/lib.rs".into(),
+                file_type: FileType::File,
+                size: 2048,
+                mode: 0o644,
+                uid: 1000,
+                gid: 1000,
+                mtime: 1,
+                atime: 1,
+                ctime: 1,
+                dev: 1,
+                ino: 1002,
+                nlink: 1,
+                flags: 0,
+            },
+        ];
+
+        active_tab.model.set_entries(entries);
     }
 
     fn update_quick_view_preview(&mut self) {
@@ -619,7 +694,29 @@ impl Render for WorkspaceView {
                 theme.inactive_border,
                 theme.active_border,
             ),
+            ActiveModal::Pack(state) => PackDialog::render(
+                state,
+                theme.panel_bg,
+                theme.fg,
+                theme.inactive_border,
+                theme.active_border,
+            ),
+            ActiveModal::Unpack(state) => UnpackDialog::render(
+                state,
+                theme.panel_bg,
+                theme.fg,
+                theme.inactive_border,
+                theme.active_border,
+            ),
         };
+
+        let drive_bar = DriveBar::render(
+            &self.drive_bar,
+            theme.table_header_bg,
+            theme.fg,
+            theme.status_bar_subtle_fg,
+            theme.active_border,
+        );
 
         let mut root_div = div()
             .relative()
@@ -633,6 +730,7 @@ impl Render for WorkspaceView {
         }
 
         root_div
+            .child(drive_bar)
             .child(div().flex_1().w_full().child(dual_pane))
             .child(cmdline_row)
             .child(status_row)
