@@ -7,7 +7,7 @@ model: flash
 tools:
   - view_file
   - replace_file_content
-  - write_file
+  - write_to_file
   - grep_search
 ---
 
