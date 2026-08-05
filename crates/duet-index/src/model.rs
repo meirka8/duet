@@ -493,10 +493,8 @@ impl DirectoryModel {
         }
 
         if let Some(ref mask) = self.filter_spec.mask {
-            if !mask.is_empty() && mask != "*" {
-                if !glob_match(mask, name) {
-                    return false;
-                }
+            if !mask.is_empty() && mask != "*" && !glob_match(mask, name) {
+                return false;
             }
         }
 
