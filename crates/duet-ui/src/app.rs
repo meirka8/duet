@@ -32,8 +32,13 @@ pub fn run_app_with_paths(left_path: Option<String>, right_path: Option<String>)
         let lp = left_path.clone();
         let rp = right_path.clone();
 
-        cx.open_window(options, move |_window, cx| {
-            cx.new(|cx| WorkspaceView::with_paths(cx, lp, rp))
+        cx.open_window(options, move |window, cx| {
+            let view = cx.new(|cx| WorkspaceView::with_paths(cx, lp, rp));
+            let fh = view.read(cx).focus_handle.clone();
+            if let Some(fh) = fh {
+                fh.focus(window);
+            }
+            view
         })
         .expect("Failed to open Duet workspace window");
     });
