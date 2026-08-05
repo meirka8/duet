@@ -1,0 +1,15 @@
+[package]
+name = "duet-ui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+gpui = { workspace = true }
+duet-types = { path = "../duet-types" }
+duet-vfs = { path = "../duet-vfs" }
+duet-widgets = { path = "../duet-widgets" }
+duet-platform = { path = "../duet-platform" }
+tokio = { workspace = true }
