@@ -628,8 +628,15 @@ impl FileSystem for LocalFs {
     async fn create_dir(&self, p: &VPath, mode: Option<u32>) -> VfsResult<()> {
         duet_platform::assert_not_ui_thread();
         let path = Path::new(&p.path);
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
         let mode_val = Mode::from_raw_mode(mode.unwrap_or(0o755));
-        LocalFs::mkdirat(rustix::fs::CWD, path, mode_val).map_err(VfsError::Io)
+        match LocalFs::mkdirat(rustix::fs::CWD, path, mode_val) {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
+            Err(e) => Err(VfsError::from(e)),
+        }
     }
 
     async fn remove(&self, p: &VPath, kind: RemoveKind) -> VfsResult<()> {

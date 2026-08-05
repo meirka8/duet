@@ -154,18 +154,14 @@ impl SearchEngine {
                         if let Some(ref creg) = content_regex {
                             if meta.is_file() && child_vpath.scheme == "file" {
                                 if let Ok(content) = std::fs::read_to_string(&child_vpath.path) {
-                                    let mut line_num = 1;
-                                    let mut found = false;
-                                    for line in content.lines() {
+                                    for (line_num, line) in (1..).zip(content.lines()) {
                                         if creg.is_match(line) {
                                             match_line = Some(line_num);
                                             match_snippet = Some(line.trim().to_string());
-                                            found = true;
                                             break;
                                         }
-                                        line_num += 1;
                                     }
-                                    if !found {
+                                    if match_line.is_none() {
                                         continue;
                                     }
                                 } else {

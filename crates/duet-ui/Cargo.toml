@@ -13,5 +13,6 @@ duet-vfs = { path = "../duet-vfs" }
 duet-index = { path = "../duet-index" }
 duet-config = { path = "../duet-config" }
 duet-widgets = { path = "../duet-widgets" }
+duet-ops = { path = "../duet-ops" }
 duet-platform = { path = "../duet-platform" }
 tokio = { workspace = true }
