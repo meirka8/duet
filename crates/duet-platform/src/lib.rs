@@ -1,3 +1,21 @@
+extern crate libc;
+
+pub mod clipboard;
+pub mod cmdline;
+pub mod mime;
+pub mod trash;
+
+pub use clipboard::{
+    format_gnome_copied_files, format_kde_cut_selection, format_uri_list,
+    parse_gnome_copied_files, parse_kde_cut_selection, parse_uri_list, ClipboardAction,
+};
+pub use cmdline::{
+    escape_shell_path, format_insert_name, format_insert_path, run_shell_command,
+    ChildProcessOutput, HistoryStore,
+};
+pub use mime::{detect_mime_type, launch_desktop_app};
+pub use trash::{read_trashinfo, TrashManager, TrashedItem};
+
 use log::{LevelFilter, SetLoggerError};
 use std::cell::Cell;
 use std::collections::VecDeque;
@@ -197,6 +215,7 @@ fn setup_panic_hook() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use duet_types::VPath;
     use tempfile::tempdir;
 
     #[test]
@@ -225,5 +244,78 @@ mod tests {
         let logs = get_recent_log_events();
         assert!(logs.iter().any(|l| l.message.contains("Test info message 1")));
         assert!(logs.iter().any(|l| l.message.contains("Test warning message 2")));
+    }
+
+    #[test]
+    fn test_gnome_and_kde_clipboard_parsing() {
+        let paths = vec![
+            VPath::new_local("/home/user/file1.txt"),
+            VPath::new_local("/home/user/file2.txt"),
+        ];
+
+        let gnome_copy = format_gnome_copied_files(ClipboardAction::Copy, &paths);
+        let (action, parsed_paths) = parse_gnome_copied_files(&gnome_copy).unwrap();
+        assert_eq!(action, ClipboardAction::Copy);
+        assert_eq!(parsed_paths, paths);
+
+        let gnome_cut = format_gnome_copied_files(ClipboardAction::Cut, &paths);
+        let (action_cut, _) = parse_gnome_copied_files(&gnome_cut).unwrap();
+        assert_eq!(action_cut, ClipboardAction::Cut);
+
+        let kde_cut = format_kde_cut_selection(ClipboardAction::Cut);
+        assert_eq!(parse_kde_cut_selection(&kde_cut), ClipboardAction::Cut);
+    }
+
+    #[test]
+    fn test_mime_detection() {
+        let text_path = std::path::Path::new("/tmp/test.txt");
+        assert_eq!(detect_mime_type(text_path), "text/plain");
+
+        let png_path = std::path::Path::new("/tmp/image.png");
+        assert_eq!(detect_mime_type(png_path), "image/png");
+
+        let pdf_path = std::path::Path::new("/tmp/doc.pdf");
+        assert_eq!(detect_mime_type(pdf_path), "application/pdf");
+    }
+
+    #[test]
+    fn test_trash_manager_flow() {
+        set_ui_thread(false);
+        let temp = tempdir().unwrap();
+        let target = temp.path().join("trash_me.txt");
+        std::fs::write(&target, "trashed data").unwrap();
+
+        let tm = TrashManager::new();
+        let item = tm.trash_file(&target).expect("trash_file failed");
+
+        assert!(!target.exists());
+        assert!(item.trash_file_path.exists());
+        assert!(item.trash_info_path.exists());
+
+        // Test restore
+        tm.restore_item(&item).expect("restore failed");
+        assert!(target.exists());
+        assert!(!item.trash_file_path.exists());
+    }
+
+    #[test]
+    fn test_cmdline_helpers_and_history() {
+        set_ui_thread(false);
+        let temp = tempdir().unwrap();
+        let history_file = temp.path().join("history.txt");
+
+        let store = HistoryStore::new();
+        store.append_history(&history_file, "echo hello").unwrap();
+        store.append_history(&history_file, "ls -la").unwrap();
+
+        let history = store.load_history(&history_file).unwrap();
+        assert_eq!(history, vec!["echo hello", "ls -la"]);
+
+        let escaped = escape_shell_path("/path with spaces/file.txt");
+        assert!(escaped.contains('\''));
+
+        let output = run_shell_command("echo duet_test", temp.path()).unwrap();
+        assert_eq!(output.exit_code, 0);
+        assert!(output.stdout.contains("duet_test"));
     }
 }
