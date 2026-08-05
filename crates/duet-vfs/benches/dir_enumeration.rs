@@ -1,6 +1,6 @@
-use criterion::{criterion_group, criterion_main, Criterion, BenchmarkId};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use duet_types::VPath;
-use duet_vfs::{FileSystem, ListOpts, local::LocalFs};
+use duet_vfs::{local::LocalFs, FileSystem, ListOpts};
 use futures::StreamExt;
 use tempfile::TempDir;
 

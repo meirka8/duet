@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use futures::stream::BoxStream;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 pub use duet_types::{Caps, Error, MetaPatch, Metadata, Result, VPath};
 

@@ -1,6 +1,6 @@
-use std::str::FromStr;
+use serde::{Deserialize, Serialize};
 use std::fmt;
-use serde::{Serialize, Deserialize};
+use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct VPath {
@@ -70,14 +70,7 @@ impl FromStr for VPath {
         let (authority, path) = if let Some(slash_idx) = rest.find('/') {
             let auth = rest[..slash_idx].to_string();
             let p = rest[slash_idx..].to_string();
-            (
-                if auth.is_empty() {
-                    None
-                } else {
-                    Some(auth)
-                },
-                p,
-            )
+            (if auth.is_empty() { None } else { Some(auth) }, p)
         } else {
             (
                 if rest.is_empty() {
@@ -139,9 +132,8 @@ impl<'de> Deserialize<'de> for Caps {
         D: serde::Deserializer<'de>,
     {
         let bits = u32::deserialize(deserializer)?;
-        Caps::from_bits(bits).ok_or_else(|| {
-            serde::de::Error::custom(format!("Invalid Caps bits: {}", bits))
-        })
+        Caps::from_bits(bits)
+            .ok_or_else(|| serde::de::Error::custom(format!("Invalid Caps bits: {}", bits)))
     }
 }
 
@@ -216,11 +208,15 @@ pub mod proptests {
             });
 
         leaf.prop_recursive(
-            3, // 3 levels deep max
+            3,  // 3 levels deep max
             16, // max size
-            8, // items per level
+            8,  // items per level
             |inner| {
-                (arb_scheme(), inner, prop::collection::vec(arb_path_segment(), 1..5))
+                (
+                    arb_scheme(),
+                    inner,
+                    prop::collection::vec(arb_path_segment(), 1..5),
+                )
                     .prop_map(|(scheme, nested_v, segments)| {
                         let path = format!("/{}", segments.join("/"));
                         VPath {
@@ -230,7 +226,7 @@ pub mod proptests {
                             nested: Some(Box::new(nested_v)),
                         }
                     })
-            }
+            },
         )
     }
 }

@@ -1,16 +1,25 @@
-use std::path::Path;
+use crate::{
+    AsyncReadSeek, AsyncWriteCommit, ChangeEvent, CopyOutcome, DirEntry, FileSystem, ListOpts,
+    RemoveKind, RenameFlags, WriteOpts,
+};
 use async_trait::async_trait;
-use futures::stream::{self, BoxStream};
-use tokio::sync::mpsc;
-use std::os::unix::fs::MetadataExt;
 use duet_types::{Caps, Error, MetaPatch, Metadata, Result, VPath};
-use crate::{FileSystem, ListOpts, DirEntry, RemoveKind, RenameFlags, ChangeEvent, CopyOutcome, WriteOpts, AsyncWriteCommit, AsyncReadSeek};
+use futures::stream::{self, BoxStream};
+use std::os::unix::fs::MetadataExt;
+use std::path::Path;
+use tokio::sync::mpsc;
 
 pub struct LocalFs;
 
 impl LocalFs {
     pub fn new() -> Self {
         Self
+    }
+}
+
+impl Default for LocalFs {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -73,7 +82,7 @@ impl FileSystem for LocalFs {
 
     fn read_dir(&self, p: &VPath, opts: ListOpts) -> BoxStream<'_, Result<Vec<DirEntry>>> {
         duet_platform::assert_not_ui_thread();
-        
+
         let path_str = p.path.clone();
         let (tx, rx) = mpsc::channel(16);
 
@@ -97,7 +106,9 @@ impl FileSystem for LocalFs {
                         Ok(n) => n,
                         Err(e) => {
                             let _ = tx.blocking_send(Err(Error::Io(e)));
-                            unsafe { libc::close(fd); }
+                            unsafe {
+                                libc::close(fd);
+                            }
                             return;
                         }
                     };
@@ -109,14 +120,12 @@ impl FileSystem for LocalFs {
                     let mut offset = 0;
                     while offset < n as usize {
                         let dirent_ptr = unsafe { buf.as_ptr().add(offset) };
-                        
-                        let d_reclen = unsafe {
-                            std::ptr::read_unaligned(dirent_ptr.add(16) as *const u16)
-                        } as usize;
-                        
-                        let d_type = unsafe {
-                            std::ptr::read(dirent_ptr.add(18) as *const u8)
-                        };
+
+                        let d_reclen =
+                            unsafe { std::ptr::read_unaligned(dirent_ptr.add(16) as *const u16) }
+                                as usize;
+
+                        let d_type = unsafe { std::ptr::read(dirent_ptr.add(18)) };
 
                         let name_ptr = unsafe { dirent_ptr.add(19) as *const libc::c_char };
                         let name_cstr = unsafe { std::ffi::CStr::from_ptr(name_ptr) };
@@ -157,11 +166,18 @@ impl FileSystem for LocalFs {
                             metadata,
                         });
 
-                        if current_chunk.len() >= 1000 {
-                            if tx.blocking_send(Ok(std::mem::replace(&mut current_chunk, Vec::with_capacity(1000)))).is_err() {
-                                unsafe { libc::close(fd); }
-                                return;
+                        if current_chunk.len() >= 1000
+                            && tx
+                                .blocking_send(Ok(std::mem::replace(
+                                    &mut current_chunk,
+                                    Vec::with_capacity(1000),
+                                )))
+                                .is_err()
+                        {
+                            unsafe {
+                                libc::close(fd);
                             }
+                            return;
                         }
                     }
                 }
@@ -170,7 +186,9 @@ impl FileSystem for LocalFs {
                     let _ = tx.blocking_send(Ok(current_chunk));
                 }
 
-                unsafe { libc::close(fd); }
+                unsafe {
+                    libc::close(fd);
+                }
             }
 
             #[cfg(not(target_os = "linux"))]
@@ -224,7 +242,13 @@ impl FileSystem for LocalFs {
                     });
 
                     if current_chunk.len() >= 1000 {
-                        if tx.blocking_send(Ok(std::mem::replace(&mut current_chunk, Vec::with_capacity(1000)))).is_err() {
+                        if tx
+                            .blocking_send(Ok(std::mem::replace(
+                                &mut current_chunk,
+                                Vec::with_capacity(1000),
+                            )))
+                            .is_err()
+                        {
                             return;
                         }
                     }
