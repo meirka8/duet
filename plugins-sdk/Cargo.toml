@@ -1,0 +1,11 @@
+[package]
+name = "duet-plugin-sdk"
+version = "0.1.0"
+edition = "2021"
+description = "Plugin SDK and WIT bindings for Duet file manager plugins"
+
+[dependencies]
+wit-bindgen = "0.36.0"
+
+[lib]
+path = "src/lib.rs"

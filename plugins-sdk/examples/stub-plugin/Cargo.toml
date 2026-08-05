@@ -1,0 +1,12 @@
+[package]
+name = "duet-stub-plugin"
+version = "0.1.0"
+edition = "2021"
+description = "Stub plugin implementation demonstrating all 5 WIT plugin interfaces for Duet"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+duet-plugin-sdk = { path = "../.." }
+wit-bindgen = "0.36.0"
