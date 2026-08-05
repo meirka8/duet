@@ -1,0 +1,23 @@
+{
+  "interaction": {
+    "id": "369b2f25-9286-4a28-90f1-5726dca3057e",
+    "conversation_id": "agent-session-default",
+    "parent_id": null,
+    "timestamp": "2026-08-05T13:42:39Z",
+    "author": "agent",
+    "user_prompt": "T-5.3.7 complete (duet-search)",
+    "model_name": "agent",
+    "model_cot": "Implemented parallel SearchEngine with glob mask, regex, size/date filtering, content text matching, streaming mpsc channel, and feed_to_panel synthetic EntryStore generator.",
+    "model_response": "duet-search task T-5.3.7 complete and verified with passing unit tests.",
+    "source_request_id": null
+  },
+  "context_items": [],
+  "tool_executions": [],
+  "artifact_links": [
+    {
+      "interaction_id": "369b2f25-9286-4a28-90f1-5726dca3057e",
+      "git_commit_hash": "7ceaac8d814dc4188e1c07e97175325960378b67",
+      "link_type": "generated"
+    }
+  ]
+}
