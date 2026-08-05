@@ -5,17 +5,20 @@ use crate::theme::ThemeTokens;
 use duet_index::EntryInput;
 use duet_types::{EntryId, FileType, VPath};
 use duet_widgets::{
-    ConflictDialogState, ConflictResolutionDialog, ConnectionManagerDialog,
-    ConnectionManagerDialogState, CopyMoveDialog, CopyMoveDialogState, CreateDirDialog,
-    CreateDirDialogState, CreateLinkDialog, CreateLinkDialogState, DeleteConfirmationDialog,
-    DeleteDialogState, DriveBar, DriveBarData, ErrorLogEntry, ErrorReportDialog, ErrorReportState,
-    FileMetaSide, FunctionBar, InputState, InputWidget, InternalViewerWidget, JobItemDisplay,
-    JobManagerModalState, JournalRecoveryEntry, LinkKind, OperationManagerModal, PackDialog,
-    PackDialogState, PermissionsDialog, PermissionsDialogState, PluginManagerDialog,
-    PluginManagerDialogState, QuickViewWidget, RenameDialog, RenameDialogState, ResizableSplitter,
-    SearchDialogState, SearchResultEntry, SearchViewWidget, SplitDirection, SplitterState,
+    ButtonBar, ButtonBarData, ConflictDialogState, ConflictResolutionDialog,
+    ConnectionManagerDialog, ConnectionManagerDialogState, CopyMoveDialog, CopyMoveDialogState,
+    CreateDirDialog, CreateDirDialogState, CreateLinkDialog, CreateLinkDialogState,
+    DeleteConfirmationDialog, DeleteDialogState, DirSyncDialog, DirSyncDialogState, DriveBar,
+    DriveBarData, ErrorLogEntry, ErrorReportDialog, ErrorReportState, FileMetaSide, FunctionBar,
+    InputState, InputWidget, InternalViewerWidget, JobItemDisplay, JobManagerModalState,
+    JournalRecoveryEntry, LinkKind, MultiRenameDialog, MultiRenameDialogState, OperationManagerModal,
+    PackDialog, PackDialogState, PermissionsDialog, PermissionsDialogState, PluginManagerDialog,
+    PluginManagerDialogState, PropertiesDialog, PropertiesDialogState, QuickViewWidget,
+    RenameDialog, RenameDialogState, ResizableSplitter, SearchDialogState, SearchResultEntry,
+    SearchViewWidget, SettingsDialog, SettingsDialogState, SplitDirection, SplitterState,
     StatusBar, StatusBarData, StatusProgressTray, StatusProgressTrayData, StartupRecoveryOverlay,
-    StartupRecoveryState, UnpackDialog, UnpackDialogState, ViewerState,
+    StartupRecoveryState, TerminalPanelState, TerminalPanelWidget, UnpackDialog, UnpackDialogState,
+    ViewerState,
 };
 use gpui::*;
 
@@ -45,6 +48,10 @@ pub enum ActiveModal {
     Unpack(UnpackDialogState),
     ConnectionManager(Box<ConnectionManagerDialogState>),
     PluginManager(Box<PluginManagerDialogState>),
+    MultiRename(Box<MultiRenameDialogState>),
+    DirSync(Box<DirSyncDialogState>),
+    Properties(Box<PropertiesDialogState>),
+    Settings(Box<SettingsDialogState>),
 }
 
 pub struct WorkspaceView {
@@ -56,6 +63,8 @@ pub struct WorkspaceView {
     pub active_modal: ActiveModal,
     pub progress_tray: StatusProgressTrayData,
     pub drive_bar: DriveBarData,
+    pub button_bar: ButtonBarData,
+    pub terminal_panel: TerminalPanelState,
     pub is_quick_view: bool,
     pub quick_view_state: Option<ViewerState>,
     pub theme: ThemeTokens,
@@ -73,11 +82,13 @@ impl Default for WorkspaceView {
             left_panel: DirectoryPanelState::default(),
             right_panel: DirectoryPanelState::default(),
             active_panel: ActivePanel::Left,
-            splitter: SplitterState::new(0.50, SplitDirection::Horizontal),
+            splitter: SplitterState::new(0.5, SplitDirection::Horizontal),
             cmdline_state,
             active_modal: ActiveModal::None,
             progress_tray: StatusProgressTrayData::default(),
             drive_bar: DriveBarData::default(),
+            button_bar: ButtonBarData::default(),
+            terminal_panel: TerminalPanelState::default(),
             is_quick_view: false,
             quick_view_state: None,
             theme: ThemeTokens::dark(),
@@ -432,6 +443,30 @@ impl WorkspaceView {
         self.active_modal = ActiveModal::PluginManager(Box::new(state));
     }
 
+    // --- Task 9.1.1: Multi-Rename ---
+    pub fn trigger_multi_rename(&mut self) {
+        let state = MultiRenameDialogState::default();
+        self.active_modal = ActiveModal::MultiRename(Box::new(state));
+    }
+
+    // --- Task 9.1.3: Dir Sync & Compare ---
+    pub fn trigger_dir_sync(&mut self) {
+        let state = DirSyncDialogState::default();
+        self.active_modal = ActiveModal::DirSync(Box::new(state));
+    }
+
+    // --- Task 9.1.6: File Properties ---
+    pub fn trigger_properties(&mut self) {
+        let state = PropertiesDialogState::default();
+        self.active_modal = ActiveModal::Properties(Box::new(state));
+    }
+
+    // --- Task 9.1.17: Settings UI ---
+    pub fn trigger_settings(&mut self) {
+        let state = SettingsDialogState::default();
+        self.active_modal = ActiveModal::Settings(Box::new(state));
+    }
+
     fn update_quick_view_preview(&mut self) {
         if self.is_quick_view {
             let path = self.get_active_cursor_item_path().unwrap_or_default();
@@ -737,6 +772,34 @@ impl Render for WorkspaceView {
                 theme.inactive_border,
                 theme.active_border,
             ),
+            ActiveModal::MultiRename(state) => MultiRenameDialog::render(
+                state,
+                theme.panel_bg,
+                theme.fg,
+                theme.inactive_border,
+                theme.active_border,
+            ),
+            ActiveModal::DirSync(state) => DirSyncDialog::render(
+                state,
+                theme.panel_bg,
+                theme.fg,
+                theme.inactive_border,
+                theme.active_border,
+            ),
+            ActiveModal::Properties(state) => PropertiesDialog::render(
+                state,
+                theme.panel_bg,
+                theme.fg,
+                theme.inactive_border,
+                theme.active_border,
+            ),
+            ActiveModal::Settings(state) => SettingsDialog::render(
+                state,
+                theme.panel_bg,
+                theme.fg,
+                theme.inactive_border,
+                theme.active_border,
+            ),
         };
 
         let drive_bar = DriveBar::render(
@@ -744,6 +807,20 @@ impl Render for WorkspaceView {
             theme.table_header_bg,
             theme.fg,
             theme.status_bar_subtle_fg,
+            theme.active_border,
+        );
+
+        let button_bar = ButtonBar::render(
+            &self.button_bar,
+            theme.table_header_bg,
+            theme.fg,
+            theme.active_border,
+        );
+
+        let terminal_panel = TerminalPanelWidget::render(
+            &self.terminal_panel,
+            theme.panel_bg,
+            theme.fg,
             theme.active_border,
         );
 
@@ -760,7 +837,9 @@ impl Render for WorkspaceView {
 
         root_div
             .child(drive_bar)
+            .child(button_bar)
             .child(div().flex_1().w_full().child(dual_pane))
+            .child(terminal_panel)
             .child(cmdline_row)
             .child(status_row)
             .child(function_bar)

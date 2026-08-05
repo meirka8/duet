@@ -16,6 +16,7 @@ futures = { workspace = true }
 thiserror = { workspace = true }
 log = { workspace = true }
 blake3 = "1.8.5"
+regex = { workspace = true }
 rustix.workspace = true
 libc.workspace = true
 
