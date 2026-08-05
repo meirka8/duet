@@ -38,9 +38,9 @@ interface host {
         message: string,
     }
 
-    /// Open a handle to a granted resource, returning a byte stream.
+    /// Open a handle to a granted resource, returning a byte payload.
     /// Access is strictly mediated host-side via capabilities (Zero Ambient Authority).
-    open-granted: func(handle: u32) -> result<stream<u8>, error>;
+    open-granted: func(handle: u32) -> result<list<u8>, error>;
 
     /// Read data from a host-granted file handle.
     read-granted: func(handle: u32, max-bytes: u64) -> result<list<u8>, error>;
@@ -100,7 +100,7 @@ interface packer-plugin {
     probe: func(head: list<u8>, name: string) -> bool;
 
     /// List entries in the archive specified by host handle.
-    list: func(archive: u32) -> result<list<entry>, error>;
+    %list: func(archive: u32) -> result<list<entry>, error>;
 
     /// Extract archive member to an output handle.
     extract: func(archive: u32, member: string, out: u32) -> result<_, error>;
@@ -120,7 +120,7 @@ interface fs-plugin {
     connect: func(location: string) -> result<u32, error>;
 
     /// List directory contents in session.
-    list: func(session: u32, path: string) -> result<list<entry>, error>;
+    %list: func(session: u32, path: string) -> result<list<entry>, error>;
 
     /// Get file from session into destination host handle.
     get: func(session: u32, src-path: string, dest-handle: u32) -> result<_, error>;
