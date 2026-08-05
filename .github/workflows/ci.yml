@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, 'feature/**' ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build_and_test:
+    name: Build, Clippy, Format, and Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwayland-dev libx11-dev libxkbcommon-dev libfontconfig1-dev libgl1-mesa-dev
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+
+      - name: Cargo Format Check
+        run: cargo fmt --all -- --check
+
+      - name: Cargo Clippy Check
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Cargo Build
+        run: cargo build --workspace --all-targets
+
+      - name: Cargo Test
+        run: cargo test --workspace --all-targets

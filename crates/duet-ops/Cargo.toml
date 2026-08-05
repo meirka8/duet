@@ -1,0 +1,13 @@
+[package]
+name = "duet-ops"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+duet-types = { path = "../duet-types" }
+duet-vfs = { path = "../duet-vfs" }
+tokio = { workspace = true }
+futures = { workspace = true }
