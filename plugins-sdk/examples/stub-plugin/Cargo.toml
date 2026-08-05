@@ -5,7 +5,7 @@ edition = "2021"
 description = "Stub plugin implementation demonstrating all 5 WIT plugin interfaces for Duet"
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["rlib"]
 
 [dependencies]
 duet-plugin-sdk = { path = "../.." }

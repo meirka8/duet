@@ -99,11 +99,24 @@ impl Default for WorkspaceView {
 
 impl WorkspaceView {
     pub fn new(cx: &mut App) -> Self {
+        Self::with_paths(cx, None, None)
+    }
+
+    pub fn with_paths(cx: &mut App, left_path: Option<String>, right_path: Option<String>) -> Self {
         let focus_handle = cx.focus_handle();
-        Self {
+        let mut ws = Self {
             focus_handle: Some(focus_handle),
             ..Default::default()
+        };
+
+        if let Some(lp) = left_path {
+            ws.left_panel.active_tab_mut().load_path(&VPath::new_local(lp));
         }
+        if let Some(rp) = right_path {
+            ws.right_panel.active_tab_mut().load_path(&VPath::new_local(rp));
+        }
+
+        ws
     }
 
     pub fn active_panel_state(&self) -> &DirectoryPanelState {

@@ -7,7 +7,7 @@ pub mod table;
 pub mod theme;
 pub mod workspace;
 
-pub use app::run_app;
+pub use app::{run_app, run_app_with_paths};
 pub use icons::{resolve_icon, IconCategory};
 pub use panel::{DirectoryPanelState, DirectoryPanelWidget, PanelTab};
 pub use table::{ColumnLayout, CursorState, FileTable, ViewMode};
