@@ -3,23 +3,79 @@ use crate::{
     RemoveKind, RenameFlags, WriteOpts,
 };
 use async_trait::async_trait;
-use duet_types::{Caps, Error, MetaPatch, Metadata, Result, VPath};
+use duet_types::{
+    Capabilities, Caps, FileType, MetaPatch, Metadata, MountId, VPath, VfsError, VfsResult,
+};
 use futures::stream::{self, BoxStream};
-use std::os::unix::fs::MetadataExt;
+use std::collections::BTreeMap;
+use std::os::unix::fs::{FileTypeExt, MetadataExt};
 use std::path::Path;
 use tokio::sync::mpsc;
 
-pub struct LocalFs;
+pub struct LocalFs {
+    mount_id: MountId,
+}
 
 impl LocalFs {
     pub fn new() -> Self {
-        Self
+        Self {
+            mount_id: MountId(0),
+        }
+    }
+
+    pub fn with_mount_id(mount_id: MountId) -> Self {
+        Self { mount_id }
     }
 }
 
 impl Default for LocalFs {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+fn fs_metadata_to_duet(meta: &std::fs::Metadata) -> Metadata {
+    let file_type = if meta.file_type().is_dir() {
+        FileType::Directory
+    } else if meta.file_type().is_symlink() {
+        FileType::Symlink
+    } else if meta.file_type().is_file() {
+        FileType::File
+    } else if meta.file_type().is_block_device() {
+        FileType::BlockDevice
+    } else if meta.file_type().is_char_device() {
+        FileType::CharDevice
+    } else if meta.file_type().is_fifo() {
+        FileType::Fifo
+    } else if meta.file_type().is_socket() {
+        FileType::Socket
+    } else {
+        FileType::Unknown
+    };
+
+    let created = meta
+        .created()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs() as i64);
+
+    Metadata {
+        size: meta.len(),
+        file_type,
+        mode: meta.mode(),
+        uid: meta.uid(),
+        gid: meta.gid(),
+        created,
+        modified: Some(meta.mtime()),
+        accessed: Some(meta.atime()),
+        dev: meta.dev(),
+        ino: meta.ino(),
+        nlink: meta.nlink(),
+        xattrs: BTreeMap::new(),
+        acl: None,
+        selinux: None,
+        rotational: None,
+        reflink_supported: None,
     }
 }
 
@@ -61,39 +117,42 @@ fn open_dir(path: &str) -> std::io::Result<i32> {
 
 #[async_trait]
 impl FileSystem for LocalFs {
+    fn mount_id(&self) -> MountId {
+        self.mount_id
+    }
+
     fn scheme(&self) -> &'static str {
         "file"
     }
 
-    fn caps(&self) -> Caps {
-        Caps::RANDOM_READ
-            | Caps::RANDOM_WRITE
-            | Caps::RENAME
-            | Caps::ATOMIC_REPLACE
+    fn capabilities(&self) -> Capabilities {
+        Caps::READ
+            | Caps::WRITE
+            | Caps::SEEK
+            | Caps::ATOMIC_RENAME
             | Caps::HARDLINK
             | Caps::SYMLINK
-            | Caps::XATTR
-            | Caps::PERMISSIONS
+            | Caps::XATTRS
+            | Caps::POSIX_PERMISSIONS
             | Caps::TIMESTAMPS
             | Caps::SPARSE
             | Caps::REFLINK
             | Caps::CHEAP_STAT
     }
 
-    fn read_dir(&self, p: &VPath, opts: ListOpts) -> BoxStream<'_, Result<Vec<DirEntry>>> {
+    fn read_dir(&self, p: &VPath, opts: ListOpts) -> BoxStream<'_, VfsResult<Vec<DirEntry>>> {
         duet_platform::assert_not_ui_thread();
 
         let path_str = p.path.clone();
         let (tx, rx) = mpsc::channel(16);
 
-        // Run the blocking dir listing in spawn_blocking
         tokio::task::spawn_blocking(move || {
             #[cfg(target_os = "linux")]
             {
                 let fd = match open_dir(&path_str) {
                     Ok(fd) => fd,
                     Err(e) => {
-                        let _ = tx.blocking_send(Err(Error::Io(e)));
+                        let _ = tx.blocking_send(Err(VfsError::Io(e)));
                         return;
                     }
                 };
@@ -105,7 +164,7 @@ impl FileSystem for LocalFs {
                     let n = match getdents64(fd, &mut buf) {
                         Ok(n) => n,
                         Err(e) => {
-                            let _ = tx.blocking_send(Err(Error::Io(e)));
+                            let _ = tx.blocking_send(Err(VfsError::Io(e)));
                             unsafe {
                                 libc::close(fd);
                             }
@@ -114,19 +173,16 @@ impl FileSystem for LocalFs {
                     };
 
                     if n == 0 {
-                        break; // EOF
+                        break;
                     }
 
                     let mut offset = 0;
                     while offset < n as usize {
                         let dirent_ptr = unsafe { buf.as_ptr().add(offset) };
-
                         let d_reclen =
                             unsafe { std::ptr::read_unaligned(dirent_ptr.add(16) as *const u16) }
                                 as usize;
-
                         let d_type = unsafe { std::ptr::read(dirent_ptr.add(18)) };
-
                         let name_ptr = unsafe { dirent_ptr.add(19) as *const libc::c_char };
                         let name_cstr = unsafe { std::ffi::CStr::from_ptr(name_ptr) };
                         let name = name_cstr.to_string_lossy().into_owned();
@@ -142,20 +198,9 @@ impl FileSystem for LocalFs {
 
                         let mut metadata = None;
                         if opts.size || opts.mtime || opts.mode {
-                            // If any specific field is requested, fetch full metadata
                             let entry_path = Path::new(&path_str).join(&name);
                             if let Ok(meta) = std::fs::metadata(&entry_path) {
-                                metadata = Some(Metadata {
-                                    is_dir: meta.is_dir(),
-                                    is_symlink: meta.file_type().is_symlink(),
-                                    size: meta.len(),
-                                    mtime: meta.mtime(),
-                                    atime: meta.atime(),
-                                    mode: meta.mode(),
-                                    nlink: meta.nlink(),
-                                    dev: meta.dev(),
-                                    ino: meta.ino(),
-                                });
+                                metadata = Some(fs_metadata_to_duet(&meta));
                             }
                         }
 
@@ -193,11 +238,10 @@ impl FileSystem for LocalFs {
 
             #[cfg(not(target_os = "linux"))]
             {
-                // Fallback for non-Linux platforms
                 let dir = match std::fs::read_dir(&path_str) {
                     Ok(d) => d,
                     Err(e) => {
-                        let _ = tx.blocking_send(Err(Error::Io(e)));
+                        let _ = tx.blocking_send(Err(VfsError::Io(e)));
                         return;
                     }
                 };
@@ -207,7 +251,7 @@ impl FileSystem for LocalFs {
                     let entry = match entry {
                         Ok(e) => e,
                         Err(e) => {
-                            let _ = tx.blocking_send(Err(Error::Io(e)));
+                            let _ = tx.blocking_send(Err(VfsError::Io(e)));
                             return;
                         }
                     };
@@ -220,17 +264,7 @@ impl FileSystem for LocalFs {
                     let mut metadata = None;
                     if opts.size || opts.mtime || opts.mode {
                         if let Ok(meta) = entry.metadata() {
-                            metadata = Some(Metadata {
-                                is_dir: meta.is_dir(),
-                                is_symlink: meta.file_type().is_symlink(),
-                                size: meta.len(),
-                                mtime: 0, // stub or OS specific
-                                atime: 0,
-                                mode: 0,
-                                nlink: 1,
-                                dev: 0,
-                                ino: 0,
-                            });
+                            metadata = Some(fs_metadata_to_duet(&meta));
                         }
                     }
 
@@ -260,36 +294,24 @@ impl FileSystem for LocalFs {
             }
         });
 
-        // Convert the receiver into a stream
         Box::pin(tokio_stream::wrappers::ReceiverStream::new(rx))
     }
 
-    async fn stat(&self, p: &VPath, _follow: bool) -> Result<Metadata> {
+    async fn stat(&self, p: &VPath, _follow: bool) -> VfsResult<Metadata> {
         duet_platform::assert_not_ui_thread();
         let path = Path::new(&p.path);
         let meta = std::fs::metadata(path)?;
-        Ok(Metadata {
-            is_dir: meta.is_dir(),
-            is_symlink: meta.file_type().is_symlink(),
-            size: meta.len(),
-            mtime: meta.mtime(),
-            atime: meta.atime(),
-            mode: meta.mode(),
-            nlink: meta.nlink(),
-            dev: meta.dev(),
-            ino: meta.ino(),
-        })
+        Ok(fs_metadata_to_duet(&meta))
     }
 
-    async fn open_read(&self, p: &VPath) -> Result<Box<dyn AsyncReadSeek>> {
+    async fn open_read(&self, p: &VPath) -> VfsResult<Box<dyn AsyncReadSeek>> {
         duet_platform::assert_not_ui_thread();
         let file = tokio::fs::File::open(&p.path).await?;
         Ok(Box::new(file))
     }
 
-    async fn open_write(&self, p: &VPath, _o: WriteOpts) -> Result<Box<dyn AsyncWriteCommit>> {
+    async fn open_write(&self, p: &VPath, _o: WriteOpts) -> VfsResult<Box<dyn AsyncWriteCommit>> {
         duet_platform::assert_not_ui_thread();
-        // Simple stub write commit wrapping tokio file
         struct LocalWriteCommit {
             file: tokio::fs::File,
         }
@@ -320,7 +342,7 @@ impl FileSystem for LocalFs {
 
         #[async_trait]
         impl AsyncWriteCommit for LocalWriteCommit {
-            async fn commit(self: Box<Self>) -> Result<()> {
+            async fn commit(self: Box<Self>) -> VfsResult<()> {
                 Ok(())
             }
         }
@@ -329,13 +351,13 @@ impl FileSystem for LocalFs {
         Ok(Box::new(LocalWriteCommit { file }))
     }
 
-    async fn create_dir(&self, p: &VPath, _mode: Option<u32>) -> Result<()> {
+    async fn create_dir(&self, p: &VPath, _mode: Option<u32>) -> VfsResult<()> {
         duet_platform::assert_not_ui_thread();
         tokio::fs::create_dir(&p.path).await?;
         Ok(())
     }
 
-    async fn remove(&self, p: &VPath, kind: RemoveKind) -> Result<()> {
+    async fn remove(&self, p: &VPath, kind: RemoveKind) -> VfsResult<()> {
         duet_platform::assert_not_ui_thread();
         match kind {
             RemoveKind::File => tokio::fs::remove_file(&p.path).await?,
@@ -344,23 +366,23 @@ impl FileSystem for LocalFs {
         Ok(())
     }
 
-    async fn rename(&self, from: &VPath, to: &VPath, _flags: RenameFlags) -> Result<()> {
+    async fn rename(&self, from: &VPath, to: &VPath, _flags: RenameFlags) -> VfsResult<()> {
         duet_platform::assert_not_ui_thread();
         tokio::fs::rename(&from.path, &to.path).await?;
         Ok(())
     }
 
-    async fn set_meta(&self, _p: &VPath, _m: &MetaPatch) -> Result<()> {
+    async fn set_meta(&self, _p: &VPath, _m: &MetaPatch) -> VfsResult<()> {
         duet_platform::assert_not_ui_thread();
         Ok(())
     }
 
-    fn watch(&self, _p: &VPath) -> Result<BoxStream<'_, ChangeEvent>> {
+    fn watch(&self, _p: &VPath) -> VfsResult<BoxStream<'_, ChangeEvent>> {
         duet_platform::assert_not_ui_thread();
         Ok(Box::pin(stream::empty()))
     }
 
-    async fn server_side_copy(&self, _from: &VPath, _to: &VPath) -> Result<CopyOutcome> {
+    async fn server_side_copy(&self, _from: &VPath, _to: &VPath) -> VfsResult<CopyOutcome> {
         duet_platform::assert_not_ui_thread();
         Ok(CopyOutcome::Unsupported)
     }
