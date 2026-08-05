@@ -1,0 +1,10 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 0ecacba626ae6dbb7e7992528c9b6e9d839a4db95b195f57ee331b1f2a9eaa7a # shrinks to v = VPath { scheme: "0", authority: None, path: "/-", nested: Some(VPath { scheme: "a", authority: None, path: "/a", nested: None }) }
+cc df151303336c7659fcdeb8e1c7399e1f5df808bb3117f91c26a96e5edd90a18c # shrinks to v = VPath { scheme: "a", authority: None, path: "/a", nested: Some(VPath { scheme: "0", authority: None, path: "/_", nested: Some(VPath { scheme: "a", authority: None, path: "/-", nested: None }) }) }
+cc b7abd300b381f07896c59d89249ad8c4105b935c8f710f6a14a48bf4bf02f61c # shrinks to v = VPath { scheme: "0", authority: None, path: "/A", nested: Some(VPath { scheme: "a", authority: Some(""), path: "/_", nested: None }) }
+cc 73e331ad9d05a05ce1a7d6e8c3c14cfb695d44d01919a5feee197251ce377373 # shrinks to v = VPath { scheme: "0", authority: None, path: "/a", nested: Some(VPath { scheme: "a", authority: Some("!"), path: "/0", nested: None }) }
