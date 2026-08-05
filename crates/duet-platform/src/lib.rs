@@ -3,6 +3,7 @@ extern crate libc;
 pub mod clipboard;
 pub mod cmdline;
 pub mod mime;
+pub mod mounts;
 pub mod trash;
 
 pub use clipboard::{
@@ -14,6 +15,7 @@ pub use cmdline::{
     ChildProcessOutput, HistoryStore,
 };
 pub use mime::{detect_mime_type, launch_desktop_app};
+pub use mounts::{MountKind, MountManager, SystemMountInfo};
 pub use trash::{read_trashinfo, TrashManager, TrashedItem};
 
 use log::{LevelFilter, SetLoggerError};

@@ -266,4 +266,21 @@ mod tests {
         assert!(ws.is_quick_view);
         assert!(ws.quick_view_state.is_some());
     }
+
+    #[test]
+    fn test_pack_unpack_branch_view_triggers() {
+        let mut ws = WorkspaceView::default();
+
+        ws.trigger_pack();
+        assert!(matches!(ws.active_modal, ActiveModal::Pack(_)));
+
+        ws.trigger_unpack();
+        assert!(matches!(ws.active_modal, ActiveModal::Unpack(_)));
+
+        ws.trigger_branch_view();
+        assert_eq!(
+            ws.active_panel_state().active_tab().path.to_string(),
+            "branch://flat_tree/"
+        );
+    }
 }

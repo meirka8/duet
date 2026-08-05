@@ -25,6 +25,13 @@ pub mod permissions_dialog;
 pub mod viewer_widget;
 pub mod search_dialog;
 pub mod quick_view;
+pub mod pack_dialog;
+pub mod unpack_dialog;
+pub mod drive_bar;
+
+pub use pack_dialog::{ArchiveFormat, PackDialog, PackDialogState};
+pub use unpack_dialog::{UnpackDialog, UnpackDialogState};
+pub use drive_bar::{DriveBar, DriveBarData, DriveEntry, DriveKind};
 
 // Re-exports for convenient top-level access
 pub use gpui_compat::ContextShim;

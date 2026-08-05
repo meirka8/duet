@@ -12,6 +12,7 @@ duet-vfs = { path = "../duet-vfs" }
 duet-platform = { path = "../duet-platform" }
 serde = { workspace = true }
 
+futures = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
 thiserror = { workspace = true }

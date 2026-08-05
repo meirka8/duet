@@ -3,7 +3,9 @@ pub mod entry_store;
 pub mod model;
 pub mod size_service;
 pub mod watcher;
+pub mod branch_view;
 
+pub use branch_view::BranchView;
 pub use diff::{DiffBatch, EntryDiffData};
 pub use entry_store::{EntryRecord, EntryStore, PER_ENTRY_BYTE_BUDGET};
 pub use model::{

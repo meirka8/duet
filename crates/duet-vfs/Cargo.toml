@@ -40,3 +40,7 @@ path = "../../tests/conformance/vfs_conformance.rs"
 name = "corpus_generator"
 path = "../../tests/corpus_generator.rs"
 
+[[test]]
+name = "archive_conformance"
+path = "../../tests/conformance/archive_conformance.rs"
+
