@@ -306,18 +306,6 @@ impl Executor {
                     let src_meta = fs.stat(src, false).await?;
                     let dst_meta = fs.stat(dst, false).await.ok();
 
-                    let is_same_dev = if let Some(ref dmeta) = dst_meta {
-                        src_meta.dev == dmeta.dev && src_meta.dev != 0
-                    } else if let Some(parent) = dst.parent() {
-                        if let Ok(pmeta) = fs.stat(&parent, false).await {
-                            src_meta.dev == pmeta.dev && src_meta.dev != 0
-                        } else {
-                            false
-                        }
-                    } else {
-                        false
-                    };
-
                     if let Some(ref dmeta) = dst_meta {
                         let decision = resolve_conflict(
                             conflict_policy,
@@ -330,17 +318,18 @@ impl Executor {
                             crate::conflict::ConflictDecision::Skip => return Ok(0),
                             crate::conflict::ConflictDecision::Cancel => return Err(VfsError::Cancelled),
                             crate::conflict::ConflictDecision::AutoRename(new_dst) => {
-                                return Box::pin(self.execute_single_step(
-                                    &Step::MoveFile {
-                                        src: src.clone(),
-                                        dst: new_dst,
-                                    },
-                                    fs,
-                                    conflict_policy,
-                                    _event_sender,
-                                    _job_id,
-                                ))
-                                .await;
+                                return self
+                                    .execute_single_step(
+                                        &Step::MoveFile {
+                                            src: src.clone(),
+                                            dst: new_dst,
+                                        },
+                                        fs,
+                                        conflict_policy,
+                                        _event_sender,
+                                        _job_id,
+                                    )
+                                    .await;
                             }
                             crate::conflict::ConflictDecision::Overwrite => {}
                         }
@@ -376,7 +365,7 @@ impl Executor {
                     }
 
                     // Cross-device: copy -> verify -> fsync -> unlink
-                    Box::pin(self.execute_single_step(
+                    self.execute_single_step(
                         &Step::CopyFile {
                             src: src.clone(),
                             dst: dst.clone(),
@@ -386,7 +375,7 @@ impl Executor {
                         conflict_policy,
                         _event_sender,
                         _job_id,
-                    ))
+                    )
                     .await?;
 
                     // fsync dst
