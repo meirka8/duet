@@ -95,4 +95,16 @@ impl FileSystem for NullFs {
     async fn server_side_copy(&self, _from: &VPath, _to: &VPath) -> VfsResult<CopyOutcome> {
         Ok(CopyOutcome::Unsupported)
     }
+
+    async fn create_symlink(&self, _target: &str, _p: &VPath) -> VfsResult<()> {
+        Err(VfsError::ReadOnlyFilesystem)
+    }
+
+    async fn read_link(&self, p: &VPath) -> VfsResult<String> {
+        Err(VfsError::NotFound(format!("NullFs path not found: {p}")))
+    }
+
+    async fn create_hardlink(&self, _from: &VPath, _to: &VPath) -> VfsResult<()> {
+        Err(VfsError::ReadOnlyFilesystem)
+    }
 }
