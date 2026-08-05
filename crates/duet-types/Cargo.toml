@@ -1,0 +1,20 @@
+[package]
+name = "duet-types"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }
+bitflags = { workspace = true }
+proptest = { workspace = true, optional = true }
+
+[features]
+default = []
+test-utils = ["dep:proptest"]
+
+[dev-dependencies]
+proptest = { workspace = true }

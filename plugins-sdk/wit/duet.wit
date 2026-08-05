@@ -1,0 +1,206 @@
+package duet:plugin@0.1.0;
+
+/// Shared host environment provided to plugins.
+interface host {
+    /// Metadata record for a file or directory entry.
+    record entry {
+        name: string,
+        size: u64,
+        mtime: s64,
+        mode: u32,
+        is-dir: bool,
+    }
+
+    /// Log severity level.
+    enum log-level {
+        trace,
+        debug,
+        info,
+        warn,
+        error,
+    }
+
+    /// Standard error codes for host/plugin interaction.
+    enum error-code {
+        not-found,
+        permission-denied,
+        already-exists,
+        invalid-input,
+        io-error,
+        cancelled,
+        not-supported,
+        unknown,
+    }
+
+    /// Structured error type.
+    record error {
+        code: error-code,
+        message: string,
+    }
+
+    /// Open a handle to a granted resource, returning a byte payload.
+    /// Access is strictly mediated host-side via capabilities (Zero Ambient Authority).
+    open-granted: func(handle: u32) -> result<list<u8>, error>;
+
+    /// Read data from a host-granted file handle.
+    read-granted: func(handle: u32, max-bytes: u64) -> result<list<u8>, error>;
+
+    /// Report job execution progress to host UI.
+    /// Returns false if user cancelled the task.
+    progress: func(done: u64, total: u64) -> bool;
+
+    /// Output a log message through host logging system.
+    log: func(level: log-level, msg: string);
+
+    /// Query host secret storage (requires `secrets` capability).
+    secret-get: func(key: string) -> result<string, error>;
+}
+
+/// Content plugin interface (WDX - custom columns & metadata extraction).
+interface content-plugin {
+    use host.{entry, error};
+
+    enum field-type {
+        string-type,
+        integer-type,
+        float-type,
+        boolean-type,
+        datetime-type,
+        bytes-type,
+    }
+
+    record field-def {
+        name: string,
+        field-type: field-type,
+        description: string,
+        readonly: bool,
+    }
+
+    variant field-value {
+        val-string(string),
+        val-int(s64),
+        val-float(f64),
+        val-bool(bool),
+        val-datetime(s64),
+        val-bytes(list<u8>),
+    }
+
+    /// Return available custom column definitions.
+    fields: func() -> list<field-def>;
+
+    /// Retrieve value for a specific field using a host-granted handle or path.
+    value: func(path: string, field: u32, handle: option<u32>) -> result<field-value, error>;
+}
+
+/// Packer plugin interface (WCX - archive format support).
+interface packer-plugin {
+    use host.{entry, error};
+
+    /// Test whether header matches this archive format.
+    probe: func(head: list<u8>, name: string) -> bool;
+
+    /// List entries in the archive specified by host handle.
+    %list: func(archive: u32) -> result<list<entry>, error>;
+
+    /// Extract archive member to an output handle.
+    extract: func(archive: u32, member: string, out: u32) -> result<_, error>;
+
+    /// Check if packer supports archive modification/creation.
+    can-write: func() -> bool;
+
+    /// Add a member from src handle into archive handle.
+    add: func(archive: u32, member: string, src: u32) -> result<_, error>;
+}
+
+/// Filesystem plugin interface (WFX - remote/virtual file systems).
+interface fs-plugin {
+    use host.{entry, error};
+
+    /// Establish connection to remote/virtual location.
+    connect: func(location: string) -> result<u32, error>;
+
+    /// List directory contents in session.
+    %list: func(session: u32, path: string) -> result<list<entry>, error>;
+
+    /// Get file from session into destination host handle.
+    get: func(session: u32, src-path: string, dest-handle: u32) -> result<_, error>;
+
+    /// Put file from source host handle into session.
+    put: func(session: u32, src-handle: u32, dest-path: string) -> result<_, error>;
+
+    /// Remove file or directory in session.
+    remove: func(session: u32, path: string, is-dir: bool) -> result<_, error>;
+
+    /// Create directory in session.
+    mkdir: func(session: u32, path: string) -> result<_, error>;
+
+    /// Rename file/directory in session.
+    rename: func(session: u32, old-path: string, new-path: string) -> result<_, error>;
+}
+
+/// Viewer plugin interface (WLX - rich file preview).
+interface viewer-plugin {
+    use host.{error};
+
+    record canvas-data {
+        width: u32,
+        height: u32,
+        pixels: list<u8>,
+    }
+
+    variant render-target {
+        markdown(string),
+        text(string),
+        canvas-rgba(canvas-data),
+    }
+
+    /// Probe file content and extension compatibility.
+    probe: func(head: list<u8>, extension: string) -> bool;
+
+    /// Render handle content to markdown text.
+    render-to-markdown: func(handle: u32) -> result<string, error>;
+
+    /// Render handle content to plain text.
+    render-to-text: func(handle: u32) -> result<string, error>;
+
+    /// Render handle content to RGBA pixel surface.
+    render-to-canvas: func(handle: u32, max-width: u32, max-height: u32) -> result<canvas-data, error>;
+
+    /// Render handle content to preferred target.
+    render: func(handle: u32) -> result<render-target, error>;
+}
+
+/// Command plugin interface (custom action palette & user commands).
+interface command-plugin {
+    use host.{error};
+
+    record command-info {
+        id: string,
+        title: string,
+        description: string,
+        shortcut: option<string>,
+    }
+
+    record selection-context {
+        active-panel-path: string,
+        selected-files: list<string>,
+        target-panel-path: option<string>,
+    }
+
+    /// Register supported commands.
+    register-commands: func() -> list<command-info>;
+
+    /// Invoke a registered command with selection context.
+    invoke: func(command-id: string, ctx: selection-context) -> result<_, error>;
+}
+
+/// Main component world definition for Duet plugins.
+world duet-plugin {
+    import host;
+
+    export content-plugin;
+    export packer-plugin;
+    export fs-plugin;
+    export viewer-plugin;
+    export command-plugin;
+}
