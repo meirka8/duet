@@ -480,6 +480,128 @@ impl WorkspaceView {
         self.active_modal = ActiveModal::Settings(Box::new(state));
     }
 
+    pub fn get_active_cursor_item_info(&self) -> Option<(bool, String)> {
+        let tab = self.active_panel_state().active_tab();
+        let len = tab.model.len();
+        if len == 0 || tab.cursor.cursor_idx >= len {
+            return None;
+        }
+        let store_idx = tab.model.view_indices()[tab.cursor.cursor_idx];
+        let store = tab.model.store();
+        let name = store.get_name(store_idx).to_string();
+        let is_dir = store.file_type(store_idx).is_dir();
+        Some((is_dir, name))
+    }
+
+    pub fn handle_key_down(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
+        let key = event.keystroke.key.as_str();
+        let ctrl = event.keystroke.modifiers.control;
+        let alt = event.keystroke.modifiers.alt;
+
+        if !matches!(self.active_modal, ActiveModal::None) {
+            match key {
+                "escape" => self.close_modal(),
+                "enter" => self.close_modal(),
+                _ => {}
+            }
+            cx.notify();
+            return;
+        }
+
+        match (key, ctrl) {
+            ("escape", _) => {
+                if self.is_quick_view {
+                    self.is_quick_view = false;
+                    self.quick_view_state = None;
+                }
+            }
+            ("tab", _) => {
+                self.toggle_active_panel();
+            }
+            ("up", _) => {
+                let state = self.active_panel_state_mut();
+                let tab = state.active_tab_mut();
+                tab.cursor.move_up();
+            }
+            ("down", _) => {
+                let state = self.active_panel_state_mut();
+                let total = state.active_tab().model.len();
+                state.active_tab_mut().cursor.move_down(total);
+            }
+            ("pageup", _) => {
+                let state = self.active_panel_state_mut();
+                state.active_tab_mut().cursor.move_page_up();
+            }
+            ("pagedown", _) => {
+                let state = self.active_panel_state_mut();
+                let total = state.active_tab().model.len();
+                state.active_tab_mut().cursor.move_page_down(total);
+            }
+            ("home", _) => {
+                let state = self.active_panel_state_mut();
+                state.active_tab_mut().cursor.move_home();
+            }
+            ("end", _) => {
+                let state = self.active_panel_state_mut();
+                let total = state.active_tab().model.len();
+                state.active_tab_mut().cursor.move_end(total);
+            }
+            ("backspace", _) => {
+                self.active_panel_state_mut().navigate_parent();
+            }
+            ("enter", _) => {
+                let cursor_item = self.get_active_cursor_item_info();
+                if let Some((is_dir, name)) = cursor_item {
+                    if name == ".." {
+                        self.active_panel_state_mut().navigate_parent();
+                    } else if is_dir {
+                        let current_path = self.active_panel_state().active_tab().path.clone();
+                        let clean = current_path.path.trim_end_matches('/');
+                        let new_path = VPath::new_local(format!("{clean}/{name}"));
+                        self.active_panel_state_mut().navigate_to(new_path);
+                    } else {
+                        self.trigger_internal_viewer();
+                    }
+                }
+            }
+            ("insert", _) => {
+                self.active_panel_state_mut().selection_insert_step();
+            }
+            ("space", _) => {
+                self.active_panel_state_mut().selection_toggle_space();
+            }
+            ("f3", _) => self.trigger_internal_viewer(),
+            ("f5", _) => {
+                if alt {
+                    self.trigger_pack();
+                } else {
+                    self.trigger_copy_dialog();
+                }
+            }
+            ("f6", _) => self.trigger_move_dialog(),
+            ("f7", _) => {
+                if alt {
+                    self.trigger_search_view();
+                } else {
+                    self.trigger_create_dir_dialog();
+                }
+            }
+            ("f8", _) | ("delete", _) => self.trigger_delete_dialog(false),
+            ("f9", _) => {
+                if alt {
+                    self.trigger_unpack();
+                }
+            }
+            ("b", true) => self.trigger_branch_view(),
+            ("q", true) => self.trigger_quick_view(),
+            ("m", true) => self.trigger_multi_rename(),
+            ("s", true) => self.trigger_dir_sync(),
+            _ => {}
+        }
+
+        cx.notify();
+    }
+
     fn update_quick_view_preview(&mut self) {
         if self.is_quick_view {
             let path = self.get_active_cursor_item_path().unwrap_or_default();
@@ -532,7 +654,7 @@ impl WorkspaceView {
 }
 
 impl Render for WorkspaceView {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<'_, Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<'_, Self>) -> impl IntoElement {
         let theme = &self.theme;
 
         // 1. Dual Panel Splitter or Quick View Mode
@@ -842,7 +964,8 @@ impl Render for WorkspaceView {
             .flex()
             .flex_col()
             .size_full()
-            .bg(theme.bg);
+            .bg(theme.bg)
+            .on_key_down(cx.listener(Self::handle_key_down));
 
         if let Some(fh) = &self.focus_handle {
             root_div = root_div.track_focus(fh);
