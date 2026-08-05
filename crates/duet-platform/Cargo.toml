@@ -7,7 +7,12 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
+duet-types = { version = "0.1.0", path = "../duet-types" }
+libc.workspace = true
 log = { workspace = true, features = ["std"] }
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
 
 
 [dev-dependencies]
