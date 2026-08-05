@@ -29,11 +29,13 @@ pub mod pack_dialog;
 pub mod unpack_dialog;
 pub mod drive_bar;
 pub mod connection_manager;
+pub mod plugin_manager;
 
 pub use pack_dialog::{ArchiveFormat, PackDialog, PackDialogState};
 pub use unpack_dialog::{UnpackDialog, UnpackDialogState};
 pub use drive_bar::{DriveBar, DriveBarData, DriveEntry, DriveKind};
 pub use connection_manager::{ConnectionManagerDialog, ConnectionManagerDialogState};
+pub use plugin_manager::{PluginManagerDialog, PluginManagerDialogState};
 
 // Re-exports for convenient top-level access
 pub use gpui_compat::ContextShim;

@@ -11,11 +11,11 @@ use duet_widgets::{
     DeleteDialogState, DriveBar, DriveBarData, ErrorLogEntry, ErrorReportDialog, ErrorReportState,
     FileMetaSide, FunctionBar, InputState, InputWidget, InternalViewerWidget, JobItemDisplay,
     JobManagerModalState, JournalRecoveryEntry, LinkKind, OperationManagerModal, PackDialog,
-    PackDialogState, PermissionsDialog, PermissionsDialogState, QuickViewWidget, RenameDialog,
-    RenameDialogState, ResizableSplitter, SearchDialogState, SearchResultEntry, SearchViewWidget,
-    SplitDirection, SplitterState, StatusBar, StatusBarData, StatusProgressTray,
-    StatusProgressTrayData, StartupRecoveryOverlay, StartupRecoveryState, UnpackDialog,
-    UnpackDialogState, ViewerState,
+    PackDialogState, PermissionsDialog, PermissionsDialogState, PluginManagerDialog,
+    PluginManagerDialogState, QuickViewWidget, RenameDialog, RenameDialogState, ResizableSplitter,
+    SearchDialogState, SearchResultEntry, SearchViewWidget, SplitDirection, SplitterState,
+    StatusBar, StatusBarData, StatusProgressTray, StatusProgressTrayData, StartupRecoveryOverlay,
+    StartupRecoveryState, UnpackDialog, UnpackDialogState, ViewerState,
 };
 use gpui::*;
 
@@ -44,6 +44,7 @@ pub enum ActiveModal {
     Pack(PackDialogState),
     Unpack(UnpackDialogState),
     ConnectionManager(Box<ConnectionManagerDialogState>),
+    PluginManager(Box<PluginManagerDialogState>),
 }
 
 pub struct WorkspaceView {
@@ -425,6 +426,12 @@ impl WorkspaceView {
         self.active_modal = ActiveModal::ConnectionManager(Box::new(state));
     }
 
+    // --- Task 8.1.11: Plugin Manager UI ---
+    pub fn trigger_plugin_manager(&mut self) {
+        let state = PluginManagerDialogState::default();
+        self.active_modal = ActiveModal::PluginManager(Box::new(state));
+    }
+
     fn update_quick_view_preview(&mut self) {
         if self.is_quick_view {
             let path = self.get_active_cursor_item_path().unwrap_or_default();
@@ -717,6 +724,13 @@ impl Render for WorkspaceView {
                 theme.active_border,
             ),
             ActiveModal::ConnectionManager(state) => ConnectionManagerDialog::render(
+                state,
+                theme.panel_bg,
+                theme.fg,
+                theme.inactive_border,
+                theme.active_border,
+            ),
+            ActiveModal::PluginManager(state) => PluginManagerDialog::render(
                 state,
                 theme.panel_bg,
                 theme.fg,
