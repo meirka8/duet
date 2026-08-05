@@ -294,5 +294,17 @@ mod tests {
             ws.active_modal,
             ActiveModal::PluginManager(_)
         ));
+
+        ws.trigger_multi_rename();
+        assert!(matches!(ws.active_modal, ActiveModal::MultiRename(_)));
+
+        ws.trigger_dir_sync();
+        assert!(matches!(ws.active_modal, ActiveModal::DirSync(_)));
+
+        ws.trigger_properties();
+        assert!(matches!(ws.active_modal, ActiveModal::Properties(_)));
+
+        ws.trigger_settings();
+        assert!(matches!(ws.active_modal, ActiveModal::Settings(_)));
     }
 }

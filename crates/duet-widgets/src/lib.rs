@@ -30,12 +30,24 @@ pub mod unpack_dialog;
 pub mod drive_bar;
 pub mod connection_manager;
 pub mod plugin_manager;
+pub mod multi_rename_dialog;
+pub mod dir_sync_dialog;
+pub mod properties_dialog;
+pub mod button_bar;
+pub mod terminal_panel;
+pub mod settings_dialog;
 
 pub use pack_dialog::{ArchiveFormat, PackDialog, PackDialogState};
 pub use unpack_dialog::{UnpackDialog, UnpackDialogState};
 pub use drive_bar::{DriveBar, DriveBarData, DriveEntry, DriveKind};
 pub use connection_manager::{ConnectionManagerDialog, ConnectionManagerDialogState};
 pub use plugin_manager::{PluginManagerDialog, PluginManagerDialogState};
+pub use multi_rename_dialog::{MultiRenameDialog, MultiRenameDialogState};
+pub use dir_sync_dialog::{DirSyncDialog, DirSyncDialogState, SyncDirection, SyncItemDiff};
+pub use properties_dialog::{PropertiesDialog, PropertiesDialogState};
+pub use button_bar::{ButtonBar, ButtonBarData, ButtonItem};
+pub use terminal_panel::{TerminalPanelState, TerminalPanelWidget};
+pub use settings_dialog::{SettingsDialog, SettingsDialogState};
 
 // Re-exports for convenient top-level access
 pub use gpui_compat::ContextShim;

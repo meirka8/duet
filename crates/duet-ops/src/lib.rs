@@ -9,12 +9,14 @@ pub mod progress;
 pub mod queue;
 pub mod step;
 pub mod strategy;
+pub mod multi_rename;
 
 pub use conflict::{resolve_conflict, ConflictDecision, ConflictPolicy};
 pub use event::JobEvent;
 pub use executor::{compute_blake3_checksum, Executor};
 pub use job::{Job, JobId, JobProgress, JobStatus};
 pub use journal::{Journal, JournalRecord};
+pub use multi_rename::{MultiRenameEngine, MultiRenameOptions, RenamePair};
 pub use plan::{CopyPlan, DeletePlan, MovePlan, Plan, SyncPlan};
 pub use planner::Planner;
 pub use progress::ProgressTracker;
