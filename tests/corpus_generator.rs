@@ -1,6 +1,7 @@
 use std::fs::{self, File};
 use std::io::{Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
+#[cfg(test)]
 use tempfile::TempDir;
 
 #[derive(Debug, Clone)]
