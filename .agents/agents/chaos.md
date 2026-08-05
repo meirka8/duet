@@ -7,7 +7,7 @@ model: pro
 tools:
   - view_file
   - replace_file_content
-  - write_file
+  - write_to_file
   - run_command
 commandExecutionPolicy: sandbox
 ---
