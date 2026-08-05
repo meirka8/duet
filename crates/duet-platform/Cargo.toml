@@ -7,4 +7,9 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
-log = { workspace = true }
+log = { workspace = true, features = ["std"] }
+
+
+[dev-dependencies]
+tempfile = { workspace = true }
+

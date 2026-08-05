@@ -21,7 +21,22 @@ serde = { workspace = true }
 [dev-dependencies]
 criterion = { workspace = true }
 tempfile = { workspace = true }
+duet-index = { path = "../duet-index" }
 
 [[bench]]
 name = "dir_enumeration"
 harness = false
+
+[[bench]]
+name = "vfs_benchmarks"
+path = "../../benches/vfs_benchmarks.rs"
+harness = false
+
+[[test]]
+name = "vfs_conformance"
+path = "../../tests/conformance/vfs_conformance.rs"
+
+[[test]]
+name = "corpus_generator"
+path = "../../tests/corpus_generator.rs"
+

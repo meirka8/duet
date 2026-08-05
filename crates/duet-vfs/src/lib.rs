@@ -147,6 +147,24 @@ pub trait FileSystem: Send + Sync {
     async fn copy_file(&self, from: &VPath, to: &VPath) -> Result<CopyOutcome> {
         self.server_side_copy(from, to).await
     }
+
+    /// Create a symbolic link at `p` pointing to `target`.
+    async fn create_symlink(&self, target: &str, p: &VPath) -> Result<()> {
+        let _ = (target, p);
+        Err(VfsError::Unsupported("symlink creation not supported".into()))
+    }
+
+    /// Read the target of a symbolic link at `p`.
+    async fn read_link(&self, p: &VPath) -> Result<String> {
+        let _ = p;
+        Err(VfsError::Unsupported("read_link not supported".into()))
+    }
+
+    /// Create a hard link at `to` pointing to `from`.
+    async fn create_hardlink(&self, from: &VPath, to: &VPath) -> Result<()> {
+        let _ = (from, to);
+        Err(VfsError::Unsupported("hardlink creation not supported".into()))
+    }
 }
 
 #[cfg(test)]
