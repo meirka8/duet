@@ -17,6 +17,7 @@ log = { workspace = true }
 tokio-stream = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
+zeroize = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }
@@ -43,4 +44,8 @@ path = "../../tests/corpus_generator.rs"
 [[test]]
 name = "archive_conformance"
 path = "../../tests/conformance/archive_conformance.rs"
+
+[[test]]
+name = "remote_fault_injection"
+path = "../../tests/fault_injection/remote_fault_injection.rs"
 
