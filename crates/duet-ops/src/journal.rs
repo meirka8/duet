@@ -16,6 +16,14 @@ pub enum JournalRecord {
         plan: Plan,
         conflict_policy: ConflictPolicy,
     },
+    StepStarted {
+        step_index: usize,
+        step: Step,
+    },
+    StepCompleted {
+        step_index: usize,
+        bytes_processed: u64,
+    },
     StepBegin {
         step_index: usize,
         step: Step,
@@ -59,7 +67,7 @@ impl Journal {
         })
     }
 
-    /// Append a single record to the journal and flush/sync to disk.
+    /// Append a single record to the journal and flush/fdatasync to disk.
     pub fn append(&mut self, record: &JournalRecord) -> Result<(), VfsError> {
         if let Some(ref mut file) = self.file {
             let mut line = serde_json::to_string(record)
@@ -67,6 +75,7 @@ impl Journal {
             line.push('\n');
             file.write_all(line.as_bytes())?;
             file.flush()?;
+            // fdatasync ensures data is committed to non-volatile storage
             file.sync_data()?;
             Ok(())
         } else {
@@ -98,17 +107,28 @@ impl Journal {
         let records = Self::read_all(path)?;
         let mut job_info = None;
         let mut last_committed_step = 0;
+        let mut is_completed = false;
 
         for rec in records {
             match rec {
                 JournalRecord::JobInit { job_id, plan, .. } => {
                     job_info = Some((job_id, plan));
                 }
-                JournalRecord::StepCommit { step_index, .. } => {
+                JournalRecord::StepCommit { step_index, .. }
+                | JournalRecord::StepCompleted { step_index, .. } => {
                     last_committed_step = step_index + 1;
+                }
+                JournalRecord::JobStatusChange {
+                    status: JobStatus::Completed,
+                } => {
+                    is_completed = true;
                 }
                 _ => {}
             }
+        }
+
+        if is_completed {
+            return Ok(None);
         }
 
         if let Some((job_id, plan)) = job_info {
@@ -116,6 +136,29 @@ impl Journal {
         } else {
             Ok(None)
         }
+    }
+
+    /// Scan a directory for interrupted journals (startup crash recovery reader).
+    pub fn scan_interrupted_journals(dir: impl AsRef<Path>) -> Result<Vec<(PathBuf, JobId, Plan, usize)>, VfsError> {
+        let mut results = Vec::new();
+        let path = dir.as_ref();
+        if !path.exists() {
+            return Ok(results);
+        }
+
+        for entry in std::fs::read_dir(path)? {
+            let entry = entry?;
+            let p = entry.path();
+            if p.extension().map_or(false, |ext| ext == "journal") {
+                if let Ok(Some((job_id, plan, step_idx))) = Self::recover(&p) {
+                    if step_idx < plan.steps().len() {
+                        results.push((p, job_id, plan, step_idx));
+                    }
+                }
+            }
+        }
+
+        Ok(results)
     }
 
     /// Return the path to the journal file.

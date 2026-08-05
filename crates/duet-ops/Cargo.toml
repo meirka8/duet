@@ -15,6 +15,9 @@ tokio = { workspace = true }
 futures = { workspace = true }
 thiserror = { workspace = true }
 log = { workspace = true }
+blake3 = "1.8.5"
+rustix.workspace = true
+libc.workspace = true
 
 [dev-dependencies]
 tempfile = { workspace = true }

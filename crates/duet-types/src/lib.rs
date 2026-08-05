@@ -305,7 +305,7 @@ pub struct MetaPatch {
 #[derive(Debug, thiserror::Error)]
 pub enum VfsError {
     #[error("I/O error: {0}")]
-    Io(#[from] std::io::Error),
+    Io(std::io::Error),
 
     #[error("Path not found: {0}")]
     NotFound(String),
@@ -354,6 +354,29 @@ pub enum VfsError {
 
     #[error("Fatal error: {0}")]
     Fatal(String),
+}
+
+impl From<std::io::Error> for VfsError {
+    fn from(err: std::io::Error) -> Self {
+        match err.kind() {
+            std::io::ErrorKind::PermissionDenied => VfsError::PermissionDenied(err.to_string()),
+            std::io::ErrorKind::NotFound => VfsError::NotFound(err.to_string()),
+            std::io::ErrorKind::AlreadyExists => VfsError::AlreadyExists(err.to_string()),
+            _ => {
+                if let Some(code) = err.raw_os_error() {
+                    match code {
+                        13 => VfsError::PermissionDenied(err.to_string()), // EACCES
+                        28 => VfsError::OutOfSpace,                          // ENOSPC
+                        2 => VfsError::NotFound(err.to_string()),           // ENOENT
+                        17 => VfsError::AlreadyExists(err.to_string()),      // EEXIST
+                        _ => VfsError::Io(err),
+                    }
+                } else {
+                    VfsError::Io(err)
+                }
+            }
+        }
+    }
 }
 
 pub type Error = VfsError;

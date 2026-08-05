@@ -1,81 +1,79 @@
 pub mod conflict;
 pub mod event;
+pub mod executor;
 pub mod job;
 pub mod journal;
 pub mod plan;
+pub mod planner;
+pub mod progress;
+pub mod queue;
 pub mod step;
+pub mod strategy;
 
-pub use conflict::ConflictPolicy;
+pub use conflict::{resolve_conflict, ConflictDecision, ConflictPolicy};
 pub use event::JobEvent;
+pub use executor::{compute_blake3_checksum, Executor};
 pub use job::{Job, JobId, JobProgress, JobStatus};
 pub use journal::{Journal, JournalRecord};
 pub use plan::{CopyPlan, DeletePlan, MovePlan, Plan, SyncPlan};
+pub use planner::Planner;
+pub use progress::ProgressTracker;
+pub use queue::QueueManager;
 pub use step::Step;
+pub use strategy::{execute_copy_strategy_ladder, CopyStrategyUsed};
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use duet_types::{MetaPatch, VPath};
+    use duet_types::VPath;
+    use duet_vfs::LocalFs;
+    use tempfile::tempdir;
 
-    #[test]
-    fn test_copy_3_file_directory_plan_serialization_roundtrip() {
-        let _src_dir = VPath::new_local("/tmp/source_dir");
-        let dst_dir = VPath::new_local("/tmp/dest_dir");
+    #[tokio::test]
+    async fn test_copy_3_file_directory_plan_and_execution() {
+        let temp = tempdir().expect("tempdir failed");
+        let src_dir = temp.path().join("source_dir");
+        let dst_dir = temp.path().join("dest_dir");
 
-        let step1 = Step::CreateDir {
-            path: dst_dir.clone(),
-            mode: Some(0o755),
-        };
-        let step2 = Step::CopyFile {
-            src: VPath::new_local("/tmp/source_dir/file1.txt"),
-            dst: VPath::new_local("/tmp/dest_dir/file1.txt"),
-            size: 1024,
-        };
-        let step3 = Step::CopyFile {
-            src: VPath::new_local("/tmp/source_dir/file2.txt"),
-            dst: VPath::new_local("/tmp/dest_dir/file2.txt"),
-            size: 2048,
-        };
-        let step4 = Step::CopyFile {
-            src: VPath::new_local("/tmp/source_dir/file3.txt"),
-            dst: VPath::new_local("/tmp/dest_dir/file3.txt"),
-            size: 4096,
-        };
-        let step5 = Step::SetMetadata {
-            path: dst_dir,
-            patch: MetaPatch {
-                mode: Some(0o755),
-                ..Default::default()
-            },
-        };
+        std::fs::create_dir_all(&src_dir).unwrap();
+        std::fs::write(src_dir.join("file1.txt"), "hello file 1").unwrap();
+        std::fs::write(src_dir.join("file2.txt"), "hello file 2 data").unwrap();
+        std::fs::write(src_dir.join("file3.txt"), "hello file 3 extra data").unwrap();
 
-        let copy_plan = CopyPlan {
-            file_count: 3,
-            total_bytes: 7168,
-            steps: vec![step1, step2, step3, step4, step5],
-        };
+        let src_vpath = VPath::new_local(src_dir.to_str().unwrap());
+        let dst_vpath = VPath::new_local(dst_dir.to_str().unwrap());
 
-        let plan = Plan::Copy(copy_plan);
+        let local_fs = LocalFs::new();
+        let planner = Planner::new().with_verification(true);
 
-        // Serialize to JSON
-        let json_str = serde_json::to_string_pretty(&plan)
-            .expect("Failed to serialize Plan to JSON");
-        assert!(!json_str.is_empty());
+        let plan = planner
+            .build_copy_plan(&[src_vpath], &dst_vpath, &local_fs, None)
+            .await
+            .expect("build_copy_plan failed");
 
-        // Deserialize from JSON
-        let deserialized_plan: Plan = serde_json::from_str(&json_str)
-            .expect("Failed to deserialize Plan from JSON");
+        assert_eq!(plan.file_count, 3);
+        assert!(plan.total_bytes > 0);
 
-        // Verify equality
-        assert_eq!(plan, deserialized_plan);
-        assert_eq!(deserialized_plan.file_count(), 3);
-        assert_eq!(deserialized_plan.total_bytes(), 7168);
-        assert_eq!(deserialized_plan.steps().len(), 5);
+        let mut job = Job::new(JobId(1), Plan::Copy(plan), ConflictPolicy::OverwriteAll);
+        let executor = Executor::new();
+
+        let cancel_signal = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let pause_signal = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+
+        executor
+            .execute_job(&mut job, &local_fs, cancel_signal, pause_signal, None)
+            .await
+            .expect("execute_job failed");
+
+        assert_eq!(job.status, JobStatus::Completed);
+        assert!(dst_dir.join("source_dir").join("file1.txt").exists());
+        assert!(dst_dir.join("source_dir").join("file2.txt").exists());
+        assert!(dst_dir.join("source_dir").join("file3.txt").exists());
     }
 
     #[test]
     fn test_journal_append_and_recovery() {
-        let temp_dir = tempfile::tempdir().expect("tempdir failed");
+        let temp_dir = tempdir().expect("tempdir failed");
         let journal_path = temp_dir.path().join("test_job.journal");
 
         let mut journal = Journal::open(&journal_path).expect("open journal failed");
@@ -100,18 +98,18 @@ mod tests {
             .expect("append failed");
 
         journal
-            .append(&JournalRecord::StepBegin {
+            .append(&JournalRecord::StepStarted {
                 step_index: 0,
                 step: plan.steps()[0].clone(),
             })
-            .expect("append step begin failed");
+            .expect("append step started failed");
 
         journal
-            .append(&JournalRecord::StepCommit {
+            .append(&JournalRecord::StepCompleted {
                 step_index: 0,
                 bytes_processed: 100,
             })
-            .expect("append step commit failed");
+            .expect("append step completed failed");
 
         drop(journal);
 
@@ -124,5 +122,103 @@ mod tests {
         assert_eq!(recovered_id, job_id);
         assert_eq!(recovered_plan, plan);
         assert_eq!(step_idx, 1);
+    }
+
+    #[tokio::test]
+    async fn test_move_and_delete_plan_and_execution() {
+        let temp = tempdir().expect("tempdir failed");
+        let src_file = temp.path().join("move_me.txt");
+        let dst_dir = temp.path().join("moved_dir");
+        std::fs::write(&src_file, "data to move").unwrap();
+
+        let local_fs = LocalFs::new();
+        let planner = Planner::new();
+
+        let src_vpath = VPath::new_local(src_file.to_str().unwrap());
+        let dst_vpath = VPath::new_local(dst_dir.to_str().unwrap());
+
+        let move_plan = planner
+            .build_move_plan(&[src_vpath.clone()], &dst_vpath, &local_fs, None)
+            .await
+            .unwrap();
+
+        let mut job = Job::new(JobId(2), Plan::Move(move_plan), ConflictPolicy::OverwriteAll);
+        let executor = Executor::new();
+
+        executor
+            .execute_job(
+                &mut job,
+                &local_fs,
+                std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+                std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+                None,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(job.status, JobStatus::Completed);
+        assert!(!src_file.exists());
+        assert!(dst_dir.join("move_me.txt").exists());
+
+        // Test delete
+        let del_vpath = VPath::new_local(dst_dir.join("move_me.txt").to_str().unwrap());
+        let delete_plan = planner
+            .build_delete_plan(&[del_vpath], &local_fs, None)
+            .await
+            .unwrap();
+
+        let mut del_job = Job::new(JobId(3), Plan::Delete(delete_plan), ConflictPolicy::OverwriteAll);
+        executor
+            .execute_job(
+                &mut del_job,
+                &local_fs,
+                std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+                std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+                None,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(del_job.status, JobStatus::Completed);
+        assert!(!dst_dir.join("move_me.txt").exists());
+    }
+
+    #[test]
+    fn test_conflict_policy_resolution() {
+        let src = VPath::new_local("/tmp/a.txt");
+        let dst = VPath::new_local("/tmp/b.txt");
+
+        let dec_skip = resolve_conflict(ConflictPolicy::SkipAll, &src, &dst, None, None);
+        assert_eq!(dec_skip, ConflictDecision::Skip);
+
+        let dec_overwrite = resolve_conflict(ConflictPolicy::OverwriteAll, &src, &dst, None, None);
+        assert_eq!(dec_overwrite, ConflictDecision::Overwrite);
+
+        let dec_cancel = resolve_conflict(ConflictPolicy::Cancel, &src, &dst, None, None);
+        assert_eq!(dec_cancel, ConflictDecision::Cancel);
+    }
+
+    #[test]
+    fn test_queue_manager_operations() {
+        let qm = QueueManager::new(None);
+        let plan = Plan::Copy(CopyPlan {
+            file_count: 2,
+            total_bytes: 500,
+            steps: vec![],
+        });
+
+        let id1 = qm.enqueue(plan.clone(), ConflictPolicy::OverwriteAll).unwrap();
+        let id2 = qm.enqueue(plan, ConflictPolicy::SkipAll).unwrap();
+
+        assert_eq!(id1, JobId(1));
+        assert_eq!(id2, JobId(2));
+
+        qm.reorder_jobs(0, 1).unwrap();
+        let status = qm.get_job_status(id1);
+        assert_eq!(status, Some(JobStatus::Pending));
+
+        let progress = qm.aggregate_progress();
+        assert_eq!(progress.total_files, 4);
+        assert_eq!(progress.total_bytes, 1000);
     }
 }
