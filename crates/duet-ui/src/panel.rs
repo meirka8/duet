@@ -455,6 +455,8 @@ impl DirectoryPanelWidget {
                     .child(format!("{:.1} GB free", free_gb)),
             );
 
+        let dir_path_str = active_tab.path.to_string();
+
         // 3. File Table
         let table = FileTable::render(
             &active_tab.model,
@@ -463,6 +465,7 @@ impl DirectoryPanelWidget {
             &state.column_layout,
             state.sort_col,
             state.sort_dir,
+            &dir_path_str,
             theme,
             cx,
             is_left,
@@ -537,6 +540,7 @@ impl DirectoryPanelWidget {
             .flex()
             .flex_col()
             .size_full()
+            .overflow_hidden()
             .bg(theme.panel_bg)
             .border_2()
             .border_color(border_color)
