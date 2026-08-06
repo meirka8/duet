@@ -1,8 +1,8 @@
 //! `DirectoryPanel` state and view representation.
 
-use crate::table::{ColumnLayout, CursorState, FileTable, ViewMode};
+use crate::table::{ColumnLayout, CursorState, DraggedFile, FileTable, ViewMode};
 use crate::theme::ThemeTokens;
-use crate::workspace::WorkspaceView;
+use crate::workspace::{ActivePanel, WorkspaceView};
 use duet_index::{DirectoryModel, EntryInput, FilterSpec, SortColumn, SortDirection};
 use duet_types::{EntryId, FileType, VPath};
 use duet_widgets::{TabBar, TabBarColors, TabItem};
@@ -389,7 +389,7 @@ impl DirectoryPanelWidget {
         theme: &ThemeTokens,
         cx: &mut Context<'_, WorkspaceView>,
         is_left: bool,
-    ) -> Div {
+    ) -> impl IntoElement {
         let border_color = if is_active {
             theme.active_border
         } else {
@@ -518,7 +518,22 @@ impl DirectoryPanelWidget {
             );
         }
 
+        let panel_id = ElementId::NamedInteger(if is_left { "l_panel".into() } else { "r_panel".into() }, 0);
         div()
+            .id(panel_id)
+            .on_drop(cx.listener(move |this: &mut WorkspaceView, file: &DraggedFile, _window, cx| {
+                if file.is_left != is_left {
+                    if is_left {
+                        this.active_panel = ActivePanel::Right;
+                        this.right_panel.active_tab_mut().cursor.cursor_idx = file.index;
+                    } else {
+                        this.active_panel = ActivePanel::Left;
+                        this.left_panel.active_tab_mut().cursor.cursor_idx = file.index;
+                    }
+                    this.trigger_copy_dialog();
+                    cx.notify();
+                }
+            }))
             .flex()
             .flex_col()
             .size_full()

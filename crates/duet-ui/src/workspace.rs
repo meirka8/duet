@@ -712,7 +712,8 @@ impl Render for WorkspaceView {
             theme,
             cx,
             true,
-        );
+        )
+        .into_any_element();
 
         let right_widget = if self.is_quick_view && self.active_panel == ActivePanel::Left {
             if let Some(qv_state) = &self.quick_view_state {
@@ -723,8 +724,10 @@ impl Render for WorkspaceView {
                     theme.inactive_border,
                     theme.active_border,
                 )
+                .into_any_element()
             } else {
                 DirectoryPanelWidget::render(&self.right_panel, false, theme, cx, false)
+                    .into_any_element()
             }
         } else if self.is_quick_view && self.active_panel == ActivePanel::Right {
             if let Some(qv_state) = &self.quick_view_state {
@@ -735,8 +738,10 @@ impl Render for WorkspaceView {
                     theme.inactive_border,
                     theme.active_border,
                 )
+                .into_any_element()
             } else {
                 DirectoryPanelWidget::render(&self.left_panel, false, theme, cx, true)
+                    .into_any_element()
             }
         } else {
             DirectoryPanelWidget::render(
@@ -746,6 +751,7 @@ impl Render for WorkspaceView {
                 cx,
                 false,
             )
+            .into_any_element()
         };
 
         let left_pane = if self.is_quick_view && self.active_panel == ActivePanel::Right {
@@ -757,8 +763,10 @@ impl Render for WorkspaceView {
                     theme.inactive_border,
                     theme.active_border,
                 )
+                .into_any_element()
             } else {
                 DirectoryPanelWidget::render(&self.left_panel, false, theme, cx, true)
+                    .into_any_element()
             }
         } else {
             left_widget
