@@ -493,6 +493,54 @@ impl WorkspaceView {
         Some((is_dir, name))
     }
 
+    pub fn handle_left_row_click(&mut self, row_idx: usize, click_count: usize) {
+        self.active_panel = ActivePanel::Left;
+        let tab = self.left_panel.active_tab_mut();
+        if row_idx < tab.model.len() {
+            tab.cursor.cursor_idx = row_idx;
+        }
+
+        if click_count >= 2 {
+            let cursor_item = self.get_active_cursor_item_info();
+            if let Some((is_dir, name)) = cursor_item {
+                if name == ".." {
+                    self.active_panel_state_mut().navigate_parent();
+                } else if is_dir {
+                    let current_path = self.active_panel_state().active_tab().path.clone();
+                    let clean = current_path.path.trim_end_matches('/');
+                    let new_path = VPath::new_local(format!("{clean}/{name}"));
+                    self.active_panel_state_mut().navigate_to(new_path);
+                } else {
+                    self.trigger_internal_viewer();
+                }
+            }
+        }
+    }
+
+    pub fn handle_right_row_click(&mut self, row_idx: usize, click_count: usize) {
+        self.active_panel = ActivePanel::Right;
+        let tab = self.right_panel.active_tab_mut();
+        if row_idx < tab.model.len() {
+            tab.cursor.cursor_idx = row_idx;
+        }
+
+        if click_count >= 2 {
+            let cursor_item = self.get_active_cursor_item_info();
+            if let Some((is_dir, name)) = cursor_item {
+                if name == ".." {
+                    self.active_panel_state_mut().navigate_parent();
+                } else if is_dir {
+                    let current_path = self.active_panel_state().active_tab().path.clone();
+                    let clean = current_path.path.trim_end_matches('/');
+                    let new_path = VPath::new_local(format!("{clean}/{name}"));
+                    self.active_panel_state_mut().navigate_to(new_path);
+                } else {
+                    self.trigger_internal_viewer();
+                }
+            }
+        }
+    }
+
     pub fn handle_key_down(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
         let key = event.keystroke.key.as_str();
         let ctrl = event.keystroke.modifiers.control;
@@ -662,6 +710,8 @@ impl Render for WorkspaceView {
             &self.left_panel,
             self.active_panel == ActivePanel::Left,
             theme,
+            cx,
+            true,
         );
 
         let right_widget = if self.is_quick_view && self.active_panel == ActivePanel::Left {
@@ -674,7 +724,7 @@ impl Render for WorkspaceView {
                     theme.active_border,
                 )
             } else {
-                DirectoryPanelWidget::render(&self.right_panel, false, theme)
+                DirectoryPanelWidget::render(&self.right_panel, false, theme, cx, false)
             }
         } else if self.is_quick_view && self.active_panel == ActivePanel::Right {
             if let Some(qv_state) = &self.quick_view_state {
@@ -686,13 +736,15 @@ impl Render for WorkspaceView {
                     theme.active_border,
                 )
             } else {
-                DirectoryPanelWidget::render(&self.left_panel, false, theme)
+                DirectoryPanelWidget::render(&self.left_panel, false, theme, cx, true)
             }
         } else {
             DirectoryPanelWidget::render(
                 &self.right_panel,
                 self.active_panel == ActivePanel::Right,
                 theme,
+                cx,
+                false,
             )
         };
 
@@ -706,7 +758,7 @@ impl Render for WorkspaceView {
                     theme.active_border,
                 )
             } else {
-                DirectoryPanelWidget::render(&self.left_panel, false, theme)
+                DirectoryPanelWidget::render(&self.left_panel, false, theme, cx, true)
             }
         } else {
             left_widget

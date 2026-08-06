@@ -3,6 +3,7 @@
 
 use crate::icons::resolve_icon;
 use crate::theme::ThemeTokens;
+use crate::workspace::WorkspaceView;
 use duet_index::{DirectoryModel, SortColumn, SortDirection};
 use duet_types::{EntryId, FileType};
 use duet_widgets::{TableColumnConfig, TableWidget, TextAlignment};
@@ -122,6 +123,8 @@ impl FileTable {
         sort_col: SortColumn,
         sort_dir: SortDirection,
         theme: &ThemeTokens,
+        cx: &mut Context<'_, WorkspaceView>,
+        is_left: bool,
     ) -> Div {
         let view_indices = model.view_indices();
         let store = model.store();
@@ -139,6 +142,8 @@ impl FileTable {
                 sort_col,
                 sort_dir,
                 theme,
+                cx,
+                is_left,
             ),
             ViewMode::Brief => Self::render_brief_mode(
                 store,
@@ -146,6 +151,8 @@ impl FileTable {
                 selection,
                 cursor,
                 theme,
+                cx,
+                is_left,
             ),
             ViewMode::Thumbnails => Self::render_thumbnails_mode(
                 store,
@@ -153,6 +160,8 @@ impl FileTable {
                 selection,
                 cursor,
                 theme,
+                cx,
+                is_left,
             ),
             ViewMode::Tree => Self::render_tree_mode(
                 store,
@@ -160,6 +169,8 @@ impl FileTable {
                 selection,
                 cursor,
                 theme,
+                cx,
+                is_left,
             ),
         }
     }
@@ -173,6 +184,8 @@ impl FileTable {
         sort_col: SortColumn,
         sort_dir: SortDirection,
         theme: &ThemeTokens,
+        cx: &mut Context<'_, WorkspaceView>,
+        is_left: bool,
     ) -> Div {
         let sorted_col_str = match sort_col {
             SortColumn::Name => "name",
@@ -270,7 +283,18 @@ impl FileTable {
                 theme.fg
             };
 
+            let row_id = ElementId::NamedInteger(if is_left { "l_row".into() } else { "r_row".into() }, i as u64);
             let mut row = div()
+                .id(row_id)
+                .on_mouse_down(MouseButton::Left, cx.listener(move |this: &mut WorkspaceView, event: &MouseDownEvent, _window, cx| {
+                    let count = event.click_count;
+                    if is_left {
+                        this.handle_left_row_click(i, count);
+                    } else {
+                        this.handle_right_row_click(i, count);
+                    }
+                    cx.notify();
+                }))
                 .flex()
                 .flex_row()
                 .w_full()
@@ -355,6 +379,8 @@ impl FileTable {
         selection: &std::collections::HashSet<EntryId>,
         cursor: &CursorState,
         theme: &ThemeTokens,
+        cx: &mut Context<'_, WorkspaceView>,
+        is_left: bool,
     ) -> Div {
         let mut grid = div()
             .flex()
@@ -388,7 +414,18 @@ impl FileTable {
                 theme.panel_bg
             };
 
+            let item_id = ElementId::NamedInteger(if is_left { "l_brief".into() } else { "r_brief".into() }, i as u64);
             let item = div()
+                .id(item_id)
+                .on_mouse_down(MouseButton::Left, cx.listener(move |this: &mut WorkspaceView, event: &MouseDownEvent, _window, cx| {
+                    let count = event.click_count;
+                    if is_left {
+                        this.handle_left_row_click(i, count);
+                    } else {
+                        this.handle_right_row_click(i, count);
+                    }
+                    cx.notify();
+                }))
                 .w(px(160.0))
                 .h(px(22.0))
                 .bg(item_bg)
@@ -416,6 +453,8 @@ impl FileTable {
         selection: &std::collections::HashSet<EntryId>,
         cursor: &CursorState,
         theme: &ThemeTokens,
+        cx: &mut Context<'_, WorkspaceView>,
+        is_left: bool,
     ) -> Div {
         let mut grid = div()
             .flex()
@@ -449,7 +488,18 @@ impl FileTable {
                 theme.table_header_bg
             };
 
+            let card_id = ElementId::NamedInteger(if is_left { "l_thumb".into() } else { "r_thumb".into() }, i as u64);
             let card = div()
+                .id(card_id)
+                .on_mouse_down(MouseButton::Left, cx.listener(move |this: &mut WorkspaceView, event: &MouseDownEvent, _window, cx| {
+                    let count = event.click_count;
+                    if is_left {
+                        this.handle_left_row_click(i, count);
+                    } else {
+                        this.handle_right_row_click(i, count);
+                    }
+                    cx.notify();
+                }))
                 .flex()
                 .flex_col()
                 .items_center()
@@ -482,6 +532,8 @@ impl FileTable {
         selection: &std::collections::HashSet<EntryId>,
         cursor: &CursorState,
         theme: &ThemeTokens,
+        cx: &mut Context<'_, WorkspaceView>,
+        is_left: bool,
     ) -> Div {
         let mut list = div()
             .flex()
@@ -515,7 +567,18 @@ impl FileTable {
                 theme.panel_bg
             };
 
+            let row_id = ElementId::NamedInteger(if is_left { "l_tree".into() } else { "r_tree".into() }, i as u64);
             let row = div()
+                .id(row_id)
+                .on_mouse_down(MouseButton::Left, cx.listener(move |this: &mut WorkspaceView, event: &MouseDownEvent, _window, cx| {
+                    let count = event.click_count;
+                    if is_left {
+                        this.handle_left_row_click(i, count);
+                    } else {
+                        this.handle_right_row_click(i, count);
+                    }
+                    cx.notify();
+                }))
                 .flex()
                 .flex_row()
                 .items_center()
