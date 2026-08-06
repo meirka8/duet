@@ -9,6 +9,31 @@ use duet_types::{EntryId, FileType};
 use duet_widgets::{TableColumnConfig, TableWidget, TextAlignment};
 use gpui::*;
 
+struct DragTooltipView {
+    name: String,
+}
+
+impl Render for DragTooltipView {
+    fn render(&mut self, _window: &mut Window, _cx: &mut Context<'_, Self>) -> impl IntoElement {
+        div()
+            .px_2()
+            .py_1()
+            .bg(rgb(0x1e1e1e))
+            .border_1()
+            .border_color(rgb(0x007acc))
+            .text_xs()
+            .text_color(rgb(0xffffff))
+            .child(format!("Copying {}", self.name))
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DraggedFile {
+    pub is_left: bool,
+    pub index: usize,
+    pub name: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViewMode {
     Full,
@@ -125,7 +150,7 @@ impl FileTable {
         theme: &ThemeTokens,
         cx: &mut Context<'_, WorkspaceView>,
         is_left: bool,
-    ) -> Div {
+    ) -> impl IntoElement {
         let view_indices = model.view_indices();
         let store = model.store();
         let selection = model.selection();
@@ -144,7 +169,8 @@ impl FileTable {
                 theme,
                 cx,
                 is_left,
-            ),
+            )
+            .into_any_element(),
             ViewMode::Brief => Self::render_brief_mode(
                 store,
                 view_indices,
@@ -153,7 +179,8 @@ impl FileTable {
                 theme,
                 cx,
                 is_left,
-            ),
+            )
+            .into_any_element(),
             ViewMode::Thumbnails => Self::render_thumbnails_mode(
                 store,
                 view_indices,
@@ -162,7 +189,8 @@ impl FileTable {
                 theme,
                 cx,
                 is_left,
-            ),
+            )
+            .into_any_element(),
             ViewMode::Tree => Self::render_tree_mode(
                 store,
                 view_indices,
@@ -171,7 +199,8 @@ impl FileTable {
                 theme,
                 cx,
                 is_left,
-            ),
+            )
+            .into_any_element(),
         }
     }
 
@@ -186,7 +215,7 @@ impl FileTable {
         theme: &ThemeTokens,
         cx: &mut Context<'_, WorkspaceView>,
         is_left: bool,
-    ) -> Div {
+    ) -> impl IntoElement {
         let sorted_col_str = match sort_col {
             SortColumn::Name => "name",
             SortColumn::Size => "size",
@@ -236,18 +265,16 @@ impl FileTable {
             theme.inactive_border,
         );
 
+        let body_id = ElementId::NamedInteger(if is_left { "l_body".into() } else { "r_body".into() }, 0);
         let mut body = div()
+            .id(body_id)
             .flex()
             .flex_col()
             .w_full()
             .flex_1()
-            .overflow_hidden();
+            .overflow_y_scroll();
 
-        let visible_count = cursor.page_size.max(20);
-        let start = cursor.scroll_top.min(indices.len());
-        let end = (start + visible_count).min(indices.len());
-
-        for i in start..end {
+        for i in 0..indices.len() {
             let store_idx = indices[i];
             let id = store.id(store_idx);
             let name = store.get_name(store_idx);
@@ -283,9 +310,18 @@ impl FileTable {
                 theme.fg
             };
 
+            let drag_payload = DraggedFile {
+                is_left,
+                index: i,
+                name: name.to_string(),
+            };
             let row_id = ElementId::NamedInteger(if is_left { "l_row".into() } else { "r_row".into() }, i as u64);
             let mut row = div()
                 .id(row_id)
+                .on_drag(drag_payload, move |payload, _pos, _window, cx| {
+                    let drag_name = payload.name.clone();
+                    cx.new(|_cx| DragTooltipView { name: drag_name })
+                })
                 .on_mouse_down(MouseButton::Left, cx.listener(move |this: &mut WorkspaceView, event: &MouseDownEvent, _window, cx| {
                     let count = event.click_count;
                     if is_left {
@@ -381,8 +417,10 @@ impl FileTable {
         theme: &ThemeTokens,
         cx: &mut Context<'_, WorkspaceView>,
         is_left: bool,
-    ) -> Div {
+    ) -> impl IntoElement {
+        let grid_id = ElementId::NamedInteger(if is_left { "l_brief_grid".into() } else { "r_brief_grid".into() }, 0);
         let mut grid = div()
+            .id(grid_id)
             .flex()
             .flex_row()
             .flex_wrap()
@@ -390,13 +428,9 @@ impl FileTable {
             .flex_1()
             .p_2()
             .gap_2()
-            .overflow_hidden();
+            .overflow_y_scroll();
 
-        let visible_count = cursor.page_size.max(40);
-        let start = cursor.scroll_top.min(indices.len());
-        let end = (start + visible_count).min(indices.len());
-
-        for i in start..end {
+        for i in 0..indices.len() {
             let store_idx = indices[i];
             let id = store.id(store_idx);
             let name = store.get_name(store_idx);
@@ -455,8 +489,10 @@ impl FileTable {
         theme: &ThemeTokens,
         cx: &mut Context<'_, WorkspaceView>,
         is_left: bool,
-    ) -> Div {
+    ) -> impl IntoElement {
+        let thumb_id = ElementId::NamedInteger(if is_left { "l_thumb_grid".into() } else { "r_thumb_grid".into() }, 0);
         let mut grid = div()
+            .id(thumb_id)
             .flex()
             .flex_row()
             .flex_wrap()
@@ -464,13 +500,9 @@ impl FileTable {
             .flex_1()
             .p_2()
             .gap_3()
-            .overflow_hidden();
+            .overflow_y_scroll();
 
-        let visible_count = cursor.page_size.max(30);
-        let start = cursor.scroll_top.min(indices.len());
-        let end = (start + visible_count).min(indices.len());
-
-        for i in start..end {
+        for i in 0..indices.len() {
             let store_idx = indices[i];
             let id = store.id(store_idx);
             let name = store.get_name(store_idx);
@@ -534,20 +566,18 @@ impl FileTable {
         theme: &ThemeTokens,
         cx: &mut Context<'_, WorkspaceView>,
         is_left: bool,
-    ) -> Div {
+    ) -> impl IntoElement {
+        let tree_id = ElementId::NamedInteger(if is_left { "l_tree_list".into() } else { "r_tree_list".into() }, 0);
         let mut list = div()
+            .id(tree_id)
             .flex()
             .flex_col()
             .w_full()
             .flex_1()
             .p_2()
-            .overflow_hidden();
+            .overflow_y_scroll();
 
-        let visible_count = cursor.page_size.max(20);
-        let start = cursor.scroll_top.min(indices.len());
-        let end = (start + visible_count).min(indices.len());
-
-        for i in start..end {
+        for i in 0..indices.len() {
             let store_idx = indices[i];
             let id = store.id(store_idx);
             let name = store.get_name(store_idx);
