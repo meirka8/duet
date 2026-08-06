@@ -32,6 +32,7 @@ pub struct DraggedFile {
     pub is_left: bool,
     pub index: usize,
     pub name: String,
+    pub path: std::path::PathBuf,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -147,6 +148,7 @@ impl FileTable {
         layout: &ColumnLayout,
         sort_col: SortColumn,
         sort_dir: SortDirection,
+        dir_path: &str,
         theme: &ThemeTokens,
         cx: &mut Context<'_, WorkspaceView>,
         is_left: bool,
@@ -157,7 +159,7 @@ impl FileTable {
 
         let _total_count = view_indices.len();
 
-        match view_mode {
+        let content = match view_mode {
             ViewMode::Full => Self::render_full_mode(
                 store,
                 view_indices,
@@ -166,6 +168,7 @@ impl FileTable {
                 layout,
                 sort_col,
                 sort_dir,
+                dir_path,
                 theme,
                 cx,
                 is_left,
@@ -176,6 +179,7 @@ impl FileTable {
                 view_indices,
                 selection,
                 cursor,
+                dir_path,
                 theme,
                 cx,
                 is_left,
@@ -186,6 +190,7 @@ impl FileTable {
                 view_indices,
                 selection,
                 cursor,
+                dir_path,
                 theme,
                 cx,
                 is_left,
@@ -196,12 +201,22 @@ impl FileTable {
                 view_indices,
                 selection,
                 cursor,
+                dir_path,
                 theme,
                 cx,
                 is_left,
             )
             .into_any_element(),
-        }
+        };
+
+        let table_id = ElementId::NamedInteger(if is_left { "l_tbl".into() } else { "r_tbl".into() }, 0);
+        div()
+            .id(table_id)
+            .flex()
+            .flex_col()
+            .size_full()
+            .overflow_hidden()
+            .child(content)
     }
 
     fn render_full_mode(
@@ -212,6 +227,7 @@ impl FileTable {
         layout: &ColumnLayout,
         sort_col: SortColumn,
         sort_dir: SortDirection,
+        dir_path: &str,
         theme: &ThemeTokens,
         cx: &mut Context<'_, WorkspaceView>,
         is_left: bool,
@@ -310,10 +326,13 @@ impl FileTable {
                 theme.fg
             };
 
+            let clean_dir = dir_path.trim_start_matches("file://");
+            let full_path = std::path::PathBuf::from(format!("{}/{}", clean_dir.trim_end_matches('/'), name));
             let drag_payload = DraggedFile {
                 is_left,
                 index: i,
                 name: name.to_string(),
+                path: full_path,
             };
             let row_id = ElementId::NamedInteger(if is_left { "l_row".into() } else { "r_row".into() }, i as u64);
             let mut row = div()
@@ -405,6 +424,7 @@ impl FileTable {
             .flex()
             .flex_col()
             .size_full()
+            .overflow_hidden()
             .child(header)
             .child(body)
     }
@@ -414,6 +434,7 @@ impl FileTable {
         indices: &[usize],
         selection: &std::collections::HashSet<EntryId>,
         cursor: &CursorState,
+        _dir_path: &str,
         theme: &ThemeTokens,
         cx: &mut Context<'_, WorkspaceView>,
         is_left: bool,
@@ -486,6 +507,7 @@ impl FileTable {
         indices: &[usize],
         selection: &std::collections::HashSet<EntryId>,
         cursor: &CursorState,
+        _dir_path: &str,
         theme: &ThemeTokens,
         cx: &mut Context<'_, WorkspaceView>,
         is_left: bool,
@@ -563,6 +585,7 @@ impl FileTable {
         indices: &[usize],
         selection: &std::collections::HashSet<EntryId>,
         cursor: &CursorState,
+        _dir_path: &str,
         theme: &ThemeTokens,
         cx: &mut Context<'_, WorkspaceView>,
         is_left: bool,
