@@ -2,6 +2,7 @@
 
 use crate::table::{ColumnLayout, CursorState, FileTable, ViewMode};
 use crate::theme::ThemeTokens;
+use crate::workspace::WorkspaceView;
 use duet_index::{DirectoryModel, EntryInput, FilterSpec, SortColumn, SortDirection};
 use duet_types::{EntryId, FileType, VPath};
 use duet_widgets::{TabBar, TabBarColors, TabItem};
@@ -386,6 +387,8 @@ impl DirectoryPanelWidget {
         state: &DirectoryPanelState,
         is_active: bool,
         theme: &ThemeTokens,
+        cx: &mut Context<'_, WorkspaceView>,
+        is_left: bool,
     ) -> Div {
         let border_color = if is_active {
             theme.active_border
@@ -461,6 +464,8 @@ impl DirectoryPanelWidget {
             state.sort_col,
             state.sort_dir,
             theme,
+            cx,
+            is_left,
         );
 
         // 4. Footer (Selection Stats T-4.2.7)
